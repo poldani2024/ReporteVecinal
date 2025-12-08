@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Reportes del Barrio</title>
 
-  <!-- CSS del sitio -->
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Leaflet CSS SIN integrity (100% compatible con GitHub Pages) -->
+  <!-- Leaflet CSS (sin integrity para GitHub Pages) -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -17,10 +16,13 @@
 <body>
 
   <h2>🗺️ Reportes del Barrio</h2>
-  <p>Tocá en el mapa para agregar un reporte o revisar los existentes.</p>
+  <p>Tocá en un punto del mapa o usá el botón para reportar un problema.</p>
 
   <!-- MAPA -->
   <div id="map"></div>
+
+  <!-- BOTÓN PARA GPS -->
+  <button id="btn-ubicacion">📍 Reportar desde donde estoy</button>
 
   <!-- FORMULARIO -->
   <form id="report-form" class="hidden">
@@ -39,10 +41,13 @@
     <label>Descripción:</label>
     <textarea id="descripcion"></textarea>
 
+    <label>Dirección:</label>
+    <input type="text" id="direccion" readonly>
+
     <button type="submit">Guardar reporte</button>
   </form>
 
-  <!-- Leaflet JS SIN integrity (para evitar bloqueo en GitHub Pages) -->
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <!-- Script propio -->
