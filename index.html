@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Reportes del Barrio</title>
 
-  <link rel="stylesheet" href="style.css">
+  <!-- CSS del sitio -->
+  <link rel="stylesheet" href="style.css" />
 
+  <!-- Leaflet CSS SIN integrity (100% compatible con GitHub Pages) -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-o9N1j7kCzorZF8MljgD5Wv5QJg5G8hSot+Y4ZkQEX0M="
-    crossorigin=""
   />
 </head>
 <body>
@@ -42,11 +42,10 @@
     <button type="submit">Guardar reporte</button>
   </form>
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-o9N1j7kCzorZF8MljgD5Wv5QJg5G8hSot+Y4ZkQEX0M="
-    crossorigin="">
-  </script>
+  <!-- Leaflet JS SIN integrity (para evitar bloqueo en GitHub Pages) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Script propio -->
   <script src="script.js"></script>
 
 </body>
