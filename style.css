@@ -10,14 +10,24 @@ h2 {
   margin-bottom: 10px;
 }
 
-/* MAPA - garantizamos que SIEMPRE tenga altura */
 #map {
   height: 60vh;
   min-height: 300px;
   width: 100%;
   background: #ddd;
   border-radius: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+}
+
+#btn-ubicacion {
+  background: #28a745;
+  color: white;
+  padding: 12px;
+  border: none;
+  border-radius: 5px;
+  width: 100%;
+  font-size: 16px;
+  margin-bottom: 15px;
 }
 
 form {
@@ -31,12 +41,13 @@ form {
   display: none;
 }
 
-button {
+button[type="submit"] {
   background: #007bff;
   color: white;
   padding: 10px 15px;
   border: none;
   margin-top: 10px;
   border-radius: 5px;
+  width: 100%;
   font-size: 16px;
 }
