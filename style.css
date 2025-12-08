@@ -10,6 +10,7 @@ h2 {
   margin-bottom: 10px;
 }
 
+/* MAPA - garantizamos que SIEMPRE tenga altura */
 #map {
   height: 60vh;
   min-height: 300px;
@@ -37,4 +38,5 @@ button {
   border: none;
   margin-top: 10px;
   border-radius: 5px;
+  font-size: 16px;
 }
