@@ -1,93 +1,56 @@
-// Crear mapa
-const map = L.map("map").setView([-32.95, -60.65], 14); // Rosario aprox
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reportes del Barrio</title>
 
-// Cargar mapa base
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-}).addTo(map);
+  <!-- CSS propio -->
+  <link rel="stylesheet" href="style.css" />
 
-// Cargar reportes desde localStorage
-let reportes = JSON.parse(localStorage.getItem("reportesBarrio")) || [];
-let markerTemp;
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-o9N1j7kCzorZF8MljgD5Wv5QJg5G8hSot+Y4ZkQEX0M="
+    crossorigin=""
+  />
+</head>
+<body>
+  <h2>🗺️ Reportes del Barrio</h2>
+  <p>Tocá en el mapa para agregar un reporte o revisar los existentes.</p>
 
-// Dibujar reportes existentes
-reportes.forEach((r) => {
-  L.marker([r.lat, r.lng])
-    .addTo(map)
-    .bindPopup(`<b>${r.tipo}</b><br>${r.descripcion}`);
-});
+  <!-- MAPA (con altura garantizada) -->
+  <div id="map" style="height: 400px; width: 100%; margin-bottom: 20px;"></div>
 
-// Evento: clic en el mapa
-map.on("click", (e) => {
-  const { lat, lng } = e.latlng;
+  <!-- FORMULARIO -->
+  <form id="report-form" class="hidden">
+    <h3>Nuevo reporte</h3>
 
-  // Buscar reportes cercanos (< 50 metros)
-  const existeCerca = reportes.find(
-    (r) => distance(lat, lng, r.lat, r.lng) < 0.05
-  );
+    <label>Tipo:</label>
+    <select id="tipo">
+      <option value="Falta de luz">Falta de luz</option>
+      <option value="Basura">Basura</option>
+      <option value="Bache">Bache</option>
+      <option value="Seguridad">Seguridad</option>
+      <option value="Ruido">Ruido</option>
+      <option value="Otro">Otro</option>
+    </select>
 
-  if (existeCerca) {
-    alert(
-      `⚠️ Ya existe un reporte cercano: ${existeCerca.tipo}.\nPodés sumarte o crear uno nuevo.`
-    );
-  }
+    <label>Descripción:</label>
+    <textarea id="descripcion"></textarea>
 
-  // Quitar marcador previo temporal
-  if (markerTemp) map.removeLayer(markerTemp);
+    <button type="submit">Guardar reporte</button>
+  </form>
 
-  // Colocar marcador temporal
-  markerTemp = L.marker([lat, lng]).addTo(map);
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o9N1j7kCzorZF8MljgD5Wv5QJg5G8hSot+Y4ZkQEX0M="
+    crossorigin=""
+  ></script>
 
-  // Mostrar formulario
-  mostrarFormulario(lat, lng);
-});
-
-// Función para abrir el formulario
-function mostrarFormulario(lat, lng) {
-  const form = document.getElementById("report-form");
-  form.classList.remove("hidden");
-
-  form.onsubmit = (ev) => {
-    ev.preventDefault();
-
-    const tipo = document.getElementById("tipo").value;
-    const descripcion = document.getElementById("descripcion").value;
-
-    const nuevo = {
-      tipo,
-      descripcion,
-      lat,
-      lng,
-      fecha: new Date(),
-    };
-
-    // Guardar en memoria del navegador
-    reportes.push(nuevo);
-    localStorage.setItem("reportesBarrio", JSON.stringify(reportes));
-
-    // Dibujar en el mapa
-    L.marker([lat, lng])
-      .addTo(map)
-      .bindPopup(`<b>${tipo}</b><br>${descripcion}`);
-
-    form.reset();
-    form.classList.add("hidden");
-
-    alert("✅ Reporte guardado.");
-  };
-}
-
-// Distancia entre dos coordenadas (en km)
-function distance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) *
-      Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) ** 2;
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // devuelve kilómetros
-}
+  <!-- Script propio -->
+  <script src="script.js"></script>
+</body>
+</html>
