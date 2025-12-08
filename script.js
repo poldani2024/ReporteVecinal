@@ -1,20 +1,27 @@
+// Inicializar mapa en Rosario
 const map = L.map("map").setView([-32.95, -60.65], 14);
 
+// Cargar mosaicos de mapa (OpenStreetMap)
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
+  maxZoom: 19
 }).addTo(map);
 
+// Cargar reportes previos desde localStorage
 let reportes = JSON.parse(localStorage.getItem("reportesBarrio")) || [];
 let markerTemp;
 
+// Dibujar marcadores existentes
 reportes.forEach((r) => {
-  L.marker([r.lat, r.lng]).addTo(map)
+  L.marker([r.lat, r.lng])
+    .addTo(map)
     .bindPopup(`<b>${r.tipo}</b><br>${r.descripcion}`);
 });
 
+// Manejar clic en el mapa
 map.on("click", (e) => {
   const { lat, lng } = e.latlng;
 
+  // Buscar reporte cercano (< 50 m)
   const existeCerca = reportes.find(
     (r) => distance(lat, lng, r.lat, r.lng) < 0.05
   );
@@ -25,12 +32,14 @@ map.on("click", (e) => {
     );
   }
 
+  // Marcar punto temporal
   if (markerTemp) map.removeLayer(markerTemp);
   markerTemp = L.marker([lat, lng]).addTo(map);
 
   mostrarFormulario(lat, lng);
 });
 
+// Mostrar formulario
 function mostrarFormulario(lat, lng) {
   const form = document.getElementById("report-form");
   form.classList.remove("hidden");
@@ -43,19 +52,25 @@ function mostrarFormulario(lat, lng) {
 
     const nuevo = { tipo, descripcion, lat, lng, fecha: new Date() };
     reportes.push(nuevo);
+
+    // Guardar
     localStorage.setItem("reportesBarrio", JSON.stringify(reportes));
 
-    L.marker([lat, lng]).addTo(map)
+    // Mostrar marcador
+    L.marker([lat, lng])
+      .addTo(map)
       .bindPopup(`<b>${tipo}</b><br>${descripcion}`);
 
     form.reset();
     form.classList.add("hidden");
+
     alert("✅ Reporte guardado.");
   };
 }
 
+// Cálculo de distancia entre puntos (km)
 function distance(lat1, lon1, lat2, lon2) {
-  const R = 6371;
+  const R = 6371; 
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
