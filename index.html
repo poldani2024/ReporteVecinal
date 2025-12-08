@@ -7,7 +7,7 @@
 
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Leaflet CSS (sin integrity para GitHub Pages) -->
+  <!-- Leaflet CSS (compatible con GitHub Pages) -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -16,12 +16,12 @@
 <body>
 
   <h2>🗺️ Reportes del Barrio</h2>
-  <p>Tocá en un punto del mapa o usá el botón para reportar un problema.</p>
+  <p>Tocá en el mapa o usá el botón para reportar un problema.</p>
 
   <!-- MAPA -->
   <div id="map"></div>
 
-  <!-- BOTÓN PARA GPS -->
+  <!-- BOTÓN GPS -->
   <button id="btn-ubicacion">📍 Reportar desde donde estoy</button>
 
   <!-- FORMULARIO -->
@@ -42,7 +42,7 @@
     <textarea id="descripcion"></textarea>
 
     <label>Dirección:</label>
-    <input type="text" id="direccion" readonly>
+    <input type="text" id="direccion" readonly />
 
     <button type="submit">Guardar reporte</button>
   </form>
