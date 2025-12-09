@@ -65,7 +65,7 @@ const map = L.map("map", {
     [-32.86894, -60.86894]  // Sur-este extra
   ],
   maxBoundsViscosity: 1.0
-}).setView([-32.86894951411646, -60.86894951411646], 15);
+}).setView([-32.9268, -60.8232], 16);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
