@@ -1,28 +1,33 @@
+// Cargar Firebase Core
+var scriptApp = document.createElement("script");
+scriptApp.src = "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+document.head.appendChild(scriptApp);
 
-<!-- Firebase Core SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+// Cargar Firebase Auth
+var scriptAuth = document.createElement("script");
+scriptAuth.src = "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+document.head.appendChild(scriptAuth);
 
-<!-- Firebase Authentication -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+// Cargar Firebase Firestore
+var scriptFirestore = document.createElement("script");
+scriptFirestore.src = "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+document.head.appendChild(scriptFirestore);
 
-<!-- Firebase Firestore -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+// Inicializar cuando todo cargue
+scriptFirestore.onload = function () {
+    const firebaseConfig = {
+        apiKey: "AlzaSyB6477kA_dp_17XWE2Al8gSAIXRKG_NKSY",
+        authDomain: "reportevecinal.firebaseapp.com",
+        projectId: "reportevecinal",
+        storageBucket: "reportevecinal.firebasestorage.app",
+        messagingSenderId: "42320775776",
+        appId: "1:42320775776:web:8e5305fba08d19bc8e5105"
+    };
 
-<script>
-// Tu configuración de Firebase
-const firebaseConfig = {
-  apiKey: "AlzaSyB6477kA_dp_17XWE2Al8gSAIXRKG_NKSY",
-  authDomain: "reportevecinal.firebaseapp.com",
-  projectId: "reportevecinal",
-  storageBucket: "reportevecinal.firebasestorage.app",
-  messagingSenderId: "42320775776",
-  appId: "1:42320775776:web:8e5305fba08d19bc8e5105"
-};
+    firebase.initializeApp(firebaseConfig);
 
-// Inicializar Firebase
-firebase.initializeApp(firebaseConfig);
+    window.auth = firebase.auth();
+    window.db = firebase.firestore();
 
-// Servicios que usaremos
-const auth = firebase.auth();
-const db = firebase.firestore();
-</script>
+    console.log("🔥 Firebase cargado correctamente");
+}
