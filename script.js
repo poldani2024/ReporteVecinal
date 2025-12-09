@@ -53,10 +53,10 @@ auth.onAuthStateChanged(async (user) => {
 
 // Coordenadas del barrio exacto (Castelli, San Sebastián, P. Oldani, Diaguitas)
 const barrioCoords = [
-  [-32.92171, -60.82793], // Castelli & Diaguitas (NO)
-  [-32.92174, -60.81721], // Castelli & San Sebastián (NE)
-  [-32.93200, -60.81725], // Padre Oldani & San Sebastián (SE)
-  [-32.93205, -60.82801], // Padre Oldani & Diaguitas (SO)
+  [-32.89444, -60.86897], // Castelli & Diaguitas (NO)
+  [-32.89541, -60.86357], // Castelli & San Sebastián (NE)
+  [-32.90680, -60.86637], // Padre Oldani & San Sebastián (SE)
+  [-32.90579, -60.87182], // Padre Oldani & Diaguitas (SO)
 ];
 
 const map = L.map("map", {
