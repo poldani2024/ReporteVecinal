@@ -1,10 +1,10 @@
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "reportvecinal.firebaseapp.com",
-  projectId: "reportvecinal",
-  storageBucket: "reportvecinal.appspot.com",
+  apiKey: "AIzaSyB6477kA_dp_17XWE2Al8gSAIXRKG_NKSY",
+  authDomain: "reportevecinal.firebaseapp.com",
+  projectId: "reportevecinal",
+  storageBucket: "reportevecinal.firebasestorage.app",
   messagingSenderId: "42320775776",
-  appId: "1:42320775776:web:8e5305fba08d19bc8e5105"
+  appId: "1:42320775776:web:70d9206815f650b98e5105"
 };
 
 firebase.initializeApp(firebaseConfig);
