@@ -47,33 +47,35 @@ auth.onAuthStateChanged(async (user) => {
 // MAPA + BARRIO DELIMITADO
 // --------------------------------------------
 
-// Coordenadas reales — ORDEN CORRECTO
+// Coordenadas reales del barrio (en orden)
 const barrioCoords = [
   [-32.894457509420499, -60.868945024183375], // NO - Castelli & Diaguitas
   [-32.895413196612988, -60.86354341802229],  // NE - Castelli & San Sebastián
-  [-32.90679922688998, -60.86634683607743],   // SE - San Sebastián & Padre Oldani
-  [-32.905812966712726, -60.871792111530176], // SO - Padre Oldani & Diaguitas
-  [-32.894457509420499, -60.868945024183375]  // cerrar polígono
+  [-32.90679922688998,  -60.86634683607743],  // SE - San Sebastián & Padre Oldani
+  [-32.905812966712726, -60.871792111530176]  // SO - Padre Oldani & Diaguitas
 ];
 
-// Inicializar mapa centrado automáticamente dentro del barrio
+// Bounds rectangulares del barrio (para validación simple)
+const barrioBounds = L.latLngBounds(barrioCoords);
+
+// Inicializar mapa centrado en el barrio
 const map = L.map("map", {
   maxZoom: 19
-}).fitBounds(barrioCoords);
+}).fitBounds(barrioBounds);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
 }).addTo(map);
 
-// Dibujar polígono del barrio
-const barrioPolygon = L.polygon(barrioCoords, {
+// Polígono del barrio
+const barrioPolygon = L.polygon([...barrioCoords, barrioCoords[0]], {
   color: "green",
   weight: 3,
   fillColor: "#00FF00",
   fillOpacity: 0.15
 }).addTo(map);
 
-// Sombreado exterior correcto
+// Sombreado exterior (solo estético)
 const world = [
   [90, -180],
   [90, 180],
@@ -81,7 +83,7 @@ const world = [
   [-90, -180]
 ];
 
-L.polygon([world, barrioCoords], {
+L.polygon([world, barrioPolygon.getLatLngs()[0]], {
   color: "black",
   fillOpacity: 0.45,
   stroke: false
@@ -89,11 +91,14 @@ L.polygon([world, barrioCoords], {
 
 
 // --------------------------------------------
-// VERIFICAR SI UN PUNTO ESTÁ DENTRO DEL BARRIO
+// FUNCION: ¿Está dentro del barrio?
 // --------------------------------------------
 function estaEnBarrio(lat, lng) {
-  return leafletPip.pointInLayer([lng, lat], barrioPolygon).length > 0;
+  return barrioBounds.contains([lat, lng]);
 }
+
+
+let markerTemp = null;
 
 
 // --------------------------------------------
@@ -116,11 +121,8 @@ db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
 });
 
 
-let markerTemp = null;
-
-
 // --------------------------------------------
-// CLICK EN MAPA → NUEVO REPORTE
+// CLICK SIMPLE EN MAPA = NUEVO REPORTE
 // --------------------------------------------
 map.on("click", async (e) => {
   const { lat, lng } = e.latlng;
@@ -141,7 +143,7 @@ map.on("click", async (e) => {
 
 
 // --------------------------------------------
-// UBICACIÓN ACTUAL
+// BOTÓN: UBICACIÓN ACTUAL
 // --------------------------------------------
 document.getElementById("btn-ubicacion").onclick = () => {
   if (!navigator.geolocation) {
@@ -171,7 +173,6 @@ document.getElementById("btn-ubicacion").onclick = () => {
 };
 
 
-
 // --------------------------------------------
 // REVERSE GEOCODING
 // --------------------------------------------
@@ -196,7 +197,6 @@ async function obtenerDireccion(lat, lng) {
     return "Dirección no disponible";
   }
 }
-
 
 
 // --------------------------------------------
@@ -234,4 +234,4 @@ function mostrarFormulario(lat, lng) {
     form.classList.add("hidden");
     alert("Reporte guardado");
   };
-      }
+}
