@@ -7,47 +7,33 @@
 
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- ==== SDK FIREBASE (COMPATIBLE) ==== -->
+  <!-- Firebase COMPAT -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-  <script>
-    // Configuración de Firebase
-    const firebaseConfig = {
-      apiKey: "AIzaSyB6477kA_dp_17XWE2Al8gSAIXRKG_NKSY",
-      authDomain: "reportevecinal.firebaseapp.com",
-      projectId: "reportevecinal",
-      storageBucket: "reportevecinal.firebasestorage.app",
-      messagingSenderId: "42320775776",
-      appId: "1:42320775776:web:8e5305fba08d19bc8e5105"
-    };
-
-    // Inicializar Firebase AL INSTANTE (nunca falla)
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db   = firebase.firestore();
-
-    console.log("🔥 Firebase cargado correctamente");
-  </script>
+  <!-- Tu inicialización -->
+  <script src="firebase.js"></script>
 </head>
+
 <body>
+  <h1>📍 Reportes del Barrio</h1>
 
-  <h2>🗺️ Reportes del Barrio</h2>
+  <button id="btnLogin">Iniciar sesión con Google</button>
+  <button id="btnLogout" class="hidden">Cerrar sesión</button>
 
-  <div id="userBox">
-    <button id="btnLogin">🔐 Iniciar sesión con Google</button>
-    <button id="btnLogout" class="hidden">Cerrar sesión</button>
-    <p id="userInfo"></p>
-  </div>
+  <p id="userInfo"></p>
+
+  <!-- Link admin -->
+  <a id="link-admin" href="admin.html" class="hidden">🔧 Panel de administración</a>
 
   <div id="map"></div>
 
-  <button id="btn-ubicacion">📍 Reportar desde donde estoy</button>
+  <button id="btn-ubicacion">📡 Usar mi ubicación</button>
 
   <form id="report-form" class="hidden">
     <h3>Nuevo reporte</h3>
@@ -56,26 +42,19 @@
     <select id="tipo">
       <option value="Falta de luz">Falta de luz</option>
       <option value="Basura">Basura</option>
-      <option value="Bache">Bache</option>
-      <option value="Seguridad">Seguridad</option>
-      <option value="Ruido">Ruido</option>
+      <option value="Inseguridad">Inseguridad</option>
       <option value="Otro">Otro</option>
     </select>
+
+    <label>Dirección:</label>
+    <input type="text" id="direccion" />
 
     <label>Descripción:</label>
     <textarea id="descripcion"></textarea>
 
-    <label>Dirección:</label>
-    <input type="text" id="direccion" readonly />
-
     <button type="submit">Guardar reporte</button>
   </form>
 
-  <!-- Leaflet -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- Tu lógica -->
   <script src="script.js"></script>
-
 </body>
 </html>
