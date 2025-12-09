@@ -7,24 +7,27 @@
 
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Leaflet CSS (compatible con GitHub Pages) -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
 
   <h2>🗺️ Reportes del Barrio</h2>
+
+  <!-- LOGIN -->
+  <div id="userBox">
+    <button id="btnLogin">🔐 Iniciar sesión con Google</button>
+    <button id="btnLogout" class="hidden">Cerrar sesión</button>
+    <p id="userInfo"></p>
+  </div>
+
   <p>Tocá en el mapa o usá el botón para reportar un problema.</p>
 
-  <!-- MAPA -->
   <div id="map"></div>
 
-  <!-- BOTÓN GPS -->
   <button id="btn-ubicacion">📍 Reportar desde donde estoy</button>
 
-  <!-- FORMULARIO -->
   <form id="report-form" class="hidden">
     <h3>Nuevo reporte</h3>
 
@@ -50,7 +53,10 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Script propio -->
+  <!-- Firebase -->
+  <script src="firebase.js"></script>
+
+  <!-- App JS -->
   <script src="script.js"></script>
 
 </body>
