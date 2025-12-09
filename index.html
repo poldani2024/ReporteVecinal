@@ -1,225 +1,59 @@
-// --------------------------------------------
-// LOGIN GOOGLE
-// --------------------------------------------
-const btnLogin = document.getElementById("btnLogin");
-const btnLogout = document.getElementById("btnLogout");
-const userInfo = document.getElementById("userInfo");
-const linkAdmin = document.getElementById("link-admin");
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reportes del Barrio</title>
 
-btnLogin.onclick = () => {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(err => console.error(err));
-};
+  <link rel="stylesheet" href="style.css" />
 
-btnLogout.onclick = () => auth.signOut();
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-auth.onAuthStateChanged(async (user) => {
-  if (user) {
-    userInfo.textContent = `Conectado como: ${user.displayName}`;
-    btnLogin.classList.add("hidden");
-    btnLogout.classList.remove("hidden");
+  <!-- Firebase COMPAT -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-    // Crear documento si no existe
-    const ref = db.collection("users").doc(user.uid);
-    const snap = await ref.get();
+  <!-- Tu inicialización -->
+  <script src="firebase.js"></script>
+</head>
 
-    if (!snap.exists) {
-      await ref.set({
-        nombre: user.displayName,
-        email: user.email,
-        rol: "vecino",
-        creado: new Date()
-      });
-    }
+<body>
+  <h1>📍 Reportes del Barrio</h1>
 
-    const data = (await ref.get()).data();
-    linkAdmin.classList.toggle("hidden", data.rol !== "admin");
+  <button id="btnLogin">Iniciar sesión con Google</button>
+  <button id="btnLogout" class="hidden">Cerrar sesión</button>
 
-  } else {
-    userInfo.textContent = "";
-    btnLogin.classList.remove("hidden");
-    btnLogout.classList.add("hidden");
-    linkAdmin.classList.add("hidden");
-  }
-});
+  <p id="userInfo"></p>
 
+  <!-- Link admin -->
+  <a id="link-admin" href="admin.html" class="hidden">🔧 Panel de administración</a>
 
-// -------------------------------------------------------
-// POLÍGONO REAL DEL BARRIO (COORDENADAS EXACTAS TUYAS)
-// -------------------------------------------------------
-const barrioCoords = [
-  [-32.8944554860, -60.8689544126], // Castelli & Diaguitas
-  [-32.8945139156, -60.8636519262], // Castelli & San Sebastián
-  [-32.9058790221, -60.8636438608], // Padre Oldani & San Sebastián
-  [-32.9058811221, -60.8717944301]  // Padre Oldani & Diaguitas
-];
+  <div id="map"></div>
 
-// -------------------------------------------------------
-// POLÍGONO INTERNO (RESTRINGIDO) — APROX. 8–10 m hacia dentro
-// Esto evita que "toque borde" y lo tome como válido.
-// -------------------------------------------------------
-const shrink = 0.00007; // 7–8 metros aprox
+  <button id="btn-ubicacion">📡 Usar mi ubicación</button>
 
-const barrioCoordsRestr = [
-  [barrioCoords[0][0] + shrink, barrioCoords[0][1] + shrink],
-  [barrioCoords[1][0] + shrink, barrioCoords[1][1] - shrink],
-  [barrioCoords[2][0] - shrink, barrioCoords[2][1] - shrink],
-  [barrioCoords[3][0] - shrink, barrioCoords[3][1] + shrink]
-];
+  <form id="report-form" class="hidden">
+    <h3>Nuevo reporte</h3>
 
+    <label>Tipo:</label>
+    <select id="tipo">
+      <option value="Falta de luz">Falta de luz</option>
+      <option value="Basura">Basura</option>
+      <option value="Inseguridad">Inseguridad</option>
+      <option value="Otro">Otro</option>
+    </select>
 
-// --------------------------------------------
-// MAPA
-// --------------------------------------------
-const map = L.map("map", {
-  doubleClickZoom: true,
-  scrollWheelZoom: true
-}).setView([-32.9000, -60.8670], 15);
+    <label>Dirección:</label>
+    <input type="text" id="direccion" />
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19
-}).addTo(map);
+    <label>Descripción:</label>
+    <textarea id="descripcion"></textarea>
 
-// Polígono externo visible (barrio real)
-const poligonoBarrio = L.polygon(barrioCoords, {
-  color: "green",
-  weight: 4,
-  fillOpacity: 0.05
-}).addTo(map);
-
-// Polígono interno para validación estricta (no visible)
-const poligonoRestr = L.polygon(barrioCoordsRestr);
-
-
-// --------------------------------------------
-// CENTRAR EL MAPA AL BARRIO PERFECTAMENTE
-// --------------------------------------------
-map.fitBounds(poligonoBarrio.getBounds());
-
-let markerTemp = null;
-
-
-// --------------------------------------------
-// CARGAR REPORTES EN TIEMPO REAL
-// --------------------------------------------
-db.collection("reportes")
-  .orderBy("fecha", "desc")
-  .onSnapshot(snapshot => {
-    snapshot.docChanges().forEach(change => {
-      if (change.type === "added") {
-        const r = change.doc.data();
-        L.marker([r.lat, r.lng]).addTo(map)
-          .bindPopup(`
-            <b>${r.tipo}</b><br>
-            ${r.descripcion}<br>
-            ${r.direccion}<br>
-            <i>${r.usuarioNombre}</i>
-          `);
-      }
-    });
-  });
-
-
-// --------------------------------------------------
-// CLICK SIMPLE = MARCAR PUNTO (SOLO DENTRO DEL BARRIO)
-// --------------------------------------------------
-map.on("click", async (e) => {
-
-  // Validación estricta
-  const inside = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], poligonoRestr);
-  if (inside.length === 0) {
-    alert("El punto está fuera del barrio.");
-    return;
-  }
-
-  const { lat, lng } = e.latlng;
-
-  const direccion = await obtenerDireccion(lat, lng);
-  document.getElementById("direccion").value = direccion;
-
-  if (markerTemp) map.removeLayer(markerTemp);
-  markerTemp = L.marker([lat, lng]).addTo(map);
-
-  mostrarFormulario(lat, lng);
-});
-
-
-// --------------------------------------------
-// BOTÓN UBICACIÓN ACTUAL
-// --------------------------------------------
-document.getElementById("btn-ubicacion").onclick = () => {
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-
-    const inside = leafletPip.pointInLayer([lng, lat], poligonoRestr);
-    if (inside.length === 0) {
-      alert("Tu ubicación está fuera del barrio.");
-      return;
-    }
-
-    map.setView([lat, lng], 17);
-
-    if (markerTemp) map.removeLayer(markerTemp);
-    markerTemp = L.marker([lat, lng]).addTo(map);
-
-    const direccion = await obtenerDireccion(lat, lng);
-    document.getElementById("direccion").value = direccion;
-
-    mostrarFormulario(lat, lng);
-  });
-};
-
-
-// --------------------------------------------
-// REVERSE GEOCODING
-// --------------------------------------------
-async function obtenerDireccion(lat, lng) {
-  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=es`;
-
-  try {
-    const data = await (await fetch(url)).json();
-
-    if (data.address) {
-      return `${data.address.road || ""} ${data.address.house_number || ""}, ${data.address.suburb || ""}, ${data.address.city || ""}`;
-    }
-    return "Dirección no disponible";
-
-  } catch {
-    return "Dirección no disponible";
-  }
-}
-
-
-// --------------------------------------------
-// FORMULARIO DE REPORTE
-// --------------------------------------------
-function mostrarFormulario(lat, lng) {
-  const form = document.getElementById("report-form");
-  form.classList.remove("hidden");
-
-  form.onsubmit = (ev) => {
-    ev.preventDefault();
-
-    if (!auth.currentUser) {
-      alert("Debés iniciar sesión.");
-      return;
-    }
-
-    db.collection("reportes").add({
-      tipo: document.getElementById("tipo").value,
-      descripcion: document.getElementById("descripcion").value,
-      direccion: document.getElementById("direccion").value,
-      lat,
-      lng,
-      estado: "Nuevo",
-      usuarioId: auth.currentUser.uid,
-      usuarioNombre: auth.currentUser.displayName,
-      fecha: firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    form.reset();
-    form.classList.add("hidden");
-    alert("Reporte guardado");
-  };
-}
+    <button type="submit">Guardar reporte</button>
+  </form>
+  <script src="script.js"></script>
+</body>
+</html>
