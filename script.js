@@ -19,12 +19,11 @@ auth.onAuthStateChanged(async (user) => {
     btnLogin.classList.add("hidden");
     btnLogout.classList.remove("hidden");
 
-    // Crear documento si no existe
-    const ref = db.collection("users").doc(user.uid);
-    const snap = await ref.get();
+    const userRef = db.collection("users").doc(user.uid);
+    const snap = await userRef.get();
 
     if (!snap.exists) {
-      await ref.set({
+      await userRef.set({
         nombre: user.displayName,
         email: user.email,
         rol: "vecino",
@@ -32,7 +31,7 @@ auth.onAuthStateChanged(async (user) => {
       });
     }
 
-    const data = (await ref.get()).data();
+    const data = (await userRef.get()).data();
     linkAdmin.classList.toggle("hidden", data.rol !== "admin");
 
   } else {
@@ -44,96 +43,84 @@ auth.onAuthStateChanged(async (user) => {
 });
 
 
-// -------------------------------------------------------
-// POLÍGONO REAL DEL BARRIO (COORDENADAS EXACTAS TUYAS)
-// -------------------------------------------------------
+// --------------------------------------------
+// MAPA + BARRIO REAL (COORDENADAS FINALES)
+// --------------------------------------------
 const barrioCoords = [
-  [-32.89445750942049, -60.86894502418337], // Castelli & Diaguitas
-  [-32.89541319661298, -60.86354341802229], // Castelli & San Sebastián
-  [-32.90679922688998, -60.86634683607743], // Padre Oldani & San Sebastián
-  [-32.90581296671272, -60.87179211153017]  // Padre Oldani & Diaguitas
+  [-32.894457508492049, -60.86895402183375],   // Castelli y Diaguitas
+  [-32.895413196611888, -60.86354341082229],  // Castelli y San Sebastián
+  [-32.906799262900090, -60.86634683607743],  // San Sebastián y Padre Oldani
+  [-32.905812966717276, -60.871972911350176]  // Padre Oldani y Diaguitas
 ];
 
-// -------------------------------------------------------
-// POLÍGONO INTERNO (RESTRINGIDO) — APROX. 8–10 m hacia dentro
-// Esto evita que "toque borde" y lo tome como válido.
-// -------------------------------------------------------
-const shrink = 0.00007; // 7–8 metros aprox
+// Polígono
+const barrioPolygon = L.polygon(barrioCoords, {
+  color: "green",
+  weight: 3,
+  fillColor: "#00FF00",
+  fillOpacity: 0.15
+});
 
-const barrioCoordsRestr = [
-  [barrioCoords[0][0] + shrink, barrioCoords[0][1] + shrink],
-  [barrioCoords[1][0] + shrink, barrioCoords[1][1] - shrink],
-  [barrioCoords[2][0] - shrink, barrioCoords[2][1] - shrink],
-  [barrioCoords[3][0] - shrink, barrioCoords[3][1] + shrink]
-];
-
-
-// --------------------------------------------
-// MAPA
-// --------------------------------------------
+// Mapa inicial
 const map = L.map("map", {
-  doubleClickZoom: true,
-  scrollWheelZoom: true
-}).setView([-32.9000, -60.8670], 15);
+  maxBounds: barrioPolygon.getBounds().pad(0.3),
+  maxBoundsViscosity: 1.0
+}).setView(barrioPolygon.getBounds().getCenter(), 16);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
 }).addTo(map);
 
-// Polígono externo visible (barrio real)
-const poligonoBarrio = L.polygon(barrioCoords, {
-  color: "green",
-  weight: 4,
-  fillOpacity: 0.05
+barrioPolygon.addTo(map);
+
+// Sombreado fuera del barrio
+const world = [
+  [90, -180],
+  [90, 180],
+  [-90, 180],
+  [-90, -180]
+];
+L.polygon([world, barrioCoords], {
+  color: "black",
+  fillOpacity: 0.5,
+  stroke: false
 }).addTo(map);
-
-// Polígono interno para validación estricta (no visible)
-const poligonoRestr = L.polygon(barrioCoordsRestr);
-
-
-// --------------------------------------------
-// CENTRAR EL MAPA AL BARRIO PERFECTAMENTE
-// --------------------------------------------
-map.fitBounds(poligonoBarrio.getBounds());
 
 let markerTemp = null;
 
 
 // --------------------------------------------
-// CARGAR REPORTES EN TIEMPO REAL
+// REPORTES EN TIEMPO REAL
 // --------------------------------------------
-db.collection("reportes")
-  .orderBy("fecha", "desc")
-  .onSnapshot(snapshot => {
-    snapshot.docChanges().forEach(change => {
-      if (change.type === "added") {
-        const r = change.doc.data();
-        L.marker([r.lat, r.lng]).addTo(map)
-          .bindPopup(`
-            <b>${r.tipo}</b><br>
-            ${r.descripcion}<br>
-            ${r.direccion}<br>
-            <i>${r.usuarioNombre}</i>
-          `);
-      }
-    });
+db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
+  snapshot.docChanges().forEach(change => {
+    if (change.type === "added") {
+      const r = change.doc.data();
+
+      L.marker([r.lat, r.lng]).addTo(map)
+        .bindPopup(`
+          <b>${r.tipo}</b><br>
+          ${r.descripcion}<br>
+          ${r.direccion}<br>
+          <i>${r.usuarioNombre}</i>
+        `);
+    }
   });
+});
 
 
-// --------------------------------------------------
-// CLICK SIMPLE = MARCAR PUNTO (SOLO DENTRO DEL BARRIO)
-// --------------------------------------------------
+// --------------------------------------------
+// CLICK EN MAPA = NUEVO REPORTE
+// --------------------------------------------
 map.on("click", async (e) => {
 
-  // Validación estricta
-  const inside = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], poligonoRestr);
-  if (inside.length === 0) {
-    alert("El punto está fuera del barrio.");
+  // Validar click dentro del barrio
+  if (!barrioPolygon.getBounds().contains(e.latlng)) {
+    alert("Solo podés reportar dentro del barrio.");
     return;
   }
 
   const { lat, lng } = e.latlng;
-
   const direccion = await obtenerDireccion(lat, lng);
   document.getElementById("direccion").value = direccion;
 
@@ -145,15 +132,19 @@ map.on("click", async (e) => {
 
 
 // --------------------------------------------
-// BOTÓN UBICACIÓN ACTUAL
+// BOTÓN: UBICACIÓN ACTUAL
 // --------------------------------------------
 document.getElementById("btn-ubicacion").onclick = () => {
+  if (!navigator.geolocation) {
+    alert("GPS no soportado.");
+    return;
+  }
+
   navigator.geolocation.getCurrentPosition(async (pos) => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
-    const inside = leafletPip.pointInLayer([lng, lat], poligonoRestr);
-    if (inside.length === 0) {
+    if (!barrioPolygon.getBounds().contains({ lat, lng })) {
       alert("Tu ubicación está fuera del barrio.");
       return;
     }
@@ -178,12 +169,18 @@ async function obtenerDireccion(lat, lng) {
   const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=es`;
 
   try {
-    const data = await (await fetch(url)).json();
+    const resp = await fetch(url);
+    const data = await resp.json();
 
     if (data.address) {
-      return `${data.address.road || ""} ${data.address.house_number || ""}, ${data.address.suburb || ""}, ${data.address.city || ""}`;
+      const calle = data.address.road || "";
+      const altura = data.address.house_number || "";
+      const barrio = data.address.suburb || "";
+      const ciudad = data.address.city || data.address.town || "";
+      return `${calle} ${altura}, ${barrio}, ${ciudad}`;
     }
-    return "Dirección no disponible";
+
+    return data.display_name || "Dirección no disponible";
 
   } catch {
     return "Dirección no disponible";
@@ -192,7 +189,7 @@ async function obtenerDireccion(lat, lng) {
 
 
 // --------------------------------------------
-// FORMULARIO DE REPORTE
+// FORMULARIO
 // --------------------------------------------
 function mostrarFormulario(lat, lng) {
   const form = document.getElementById("report-form");
@@ -202,7 +199,7 @@ function mostrarFormulario(lat, lng) {
     ev.preventDefault();
 
     if (!auth.currentUser) {
-      alert("Debés iniciar sesión.");
+      alert("Debés iniciar sesión con Google.");
       return;
     }
 
@@ -222,4 +219,4 @@ function mostrarFormulario(lat, lng) {
     form.classList.add("hidden");
     alert("Reporte guardado");
   };
-   }
+}
