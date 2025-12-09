@@ -51,7 +51,7 @@ auth.onAuthStateChanged(async (user) => {
 // LIMITES DEL BARRIO (La Estancia / Los Indios – Funes)
 // --------------------------------------------
 const limitesBarrio = L.latLngBounds(
-  [-32.94263, -60.81419],   // Sur-Oeste (Padre Oldani + Castelli)
+  [-32.9067875,-60.8689979],   // Sur-Oeste (Padre Oldani + Castelli)
   [-32.8954455,-60.8661309]    // Norte-Este (Acequias del Aire + Las Heras)
 );
 
