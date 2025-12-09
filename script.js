@@ -55,17 +55,17 @@ auth.onAuthStateChanged(async (user) => {
 const barrioCoords = [
   [-32.89445155494477, -60.86894951411646], // Castelli & Diaguitas (NO)
   [-32.89542413210965, -60.86356172032791], // Castelli & San Sebastián (NE)
-  [-32.90676777560056, -60.86638186564429], // Padre Oldani & San Sebastián (SE)
-  [-32.9057951598718, -60.87182320951879], // Padre Oldani & Diaguitas (SO)
+  [-32.86894951411646, -60.86638186564429], // Padre Oldani & San Sebastián (SE)
+  [-32.9057951598718, -60.86894951411646], // Padre Oldani & Diaguitas (SO)
 ];
 
 const map = L.map("map", {
   maxBounds: [  // no deja salir del barrio
     [-32.89444, -60.86897], // Norte-oeste extra
-    [-32.90680, -60.86637]  // Sur-este extra
+    [-32.86894, -60.86894]  // Sur-este extra
   ],
   maxBoundsViscosity: 1.0
-}).setView([-32.89444, -60.89444], 15);
+}).setView([-32.86894951411646, -60.86894951411646], 15);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
