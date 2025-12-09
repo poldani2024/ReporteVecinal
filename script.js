@@ -52,7 +52,7 @@ auth.onAuthStateChanged(async (user) => {
 // --------------------------------------------
 const limitesBarrio = L.latLngBounds(
   [-32.94263, -60.81419],   // Sur-Oeste (Padre Oldani + Castelli)
-  [-32.93238, -60.80220]    // Norte-Este (Acequias del Aire + Las Heras)
+  [-32.8954455,-60.8661309]    // Norte-Este (Acequias del Aire + Las Heras)
 );
 
 const centroBarrio = [-32.93750, -60.80800];
