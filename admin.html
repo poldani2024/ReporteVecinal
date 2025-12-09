@@ -1,37 +1,27 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Panel de Administración</title>
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 
-  <!-- Firebase compat SDK -->
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyB6477kA_dp_17XWE2Al8gSAIXRKG_NKSY",
-      authDomain: "reportevecinal.firebaseapp.com",
-      projectId: "reportevecinal",
-      storageBucket: "reportevecinal.firebasestorage.app",
-      messagingSenderId: "42320775776",
-      appId: "1:42320775776:web:70d9206815f650b98e5105"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db   = firebase.firestore();
-  </script>
-
+  <script src="firebase.js"></script>
 </head>
-<body>
 
-  <h2>Panel de Administración</h2>
-  <p>Solo personal autorizado.</p>
+<body>
+  <h1>🔧 Panel de Administración</h1>
+
+  <button onclick="window.location.href='index.html'">⬅ Volver al mapa</button>
+  <p id="adminUserInfo"></p>
+
+  <h2>Reportes recibidos</h2>
 
   <table id="tabla-reportes">
     <thead>
@@ -39,16 +29,14 @@
         <th>Tipo</th>
         <th>Dirección</th>
         <th>Descripción</th>
+        <th>Vecino</th>
         <th>Estado</th>
-        <th>Fecha</th>
-        <th>Usuario</th>
         <th>Acciones</th>
       </tr>
     </thead>
-    <tbody></tbody>
+    <tbody id="tbody-reportes"></tbody>
   </table>
 
   <script src="admin.js"></script>
-
 </body>
 </html>
