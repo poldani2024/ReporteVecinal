@@ -19,7 +19,6 @@ auth.onAuthStateChanged(async (user) => {
     btnLogin.classList.add("hidden");
     btnLogout.classList.remove("hidden");
 
-    // Crear el documento si no existe
     const userRef = db.collection("users").doc(user.uid);
     const snap = await userRef.get();
 
@@ -32,7 +31,6 @@ auth.onAuthStateChanged(async (user) => {
       });
     }
 
-    // Mostrar botón admin si corresponde
     const data = (await userRef.get()).data();
     if (data.rol === "admin") {
       linkAdmin.classList.remove("hidden");
@@ -48,16 +46,34 @@ auth.onAuthStateChanged(async (user) => {
   }
 });
 
+
 // --------------------------------------------
-// MAPA
+// LIMITES DEL BARRIO (La Estancia / Los Indios – Funes)
 // --------------------------------------------
-const map = L.map("map").setView([-32.95, -60.65], 14);
+const limitesBarrio = L.latLngBounds(
+  [-32.94263, -60.81419],   // Sur-Oeste (Padre Oldani + Castelli)
+  [-32.93238, -60.80220]    // Norte-Este (Acequias del Aire + Las Heras)
+);
+
+const centroBarrio = [-32.93750, -60.80800];
+
+
+// --------------------------------------------
+// MAPA RESTRINGIDO AL BARRIO
+// --------------------------------------------
+const map = L.map("map", {
+  maxBounds: limitesBarrio,    
+  maxBoundsViscosity: 1.0,    
+  minZoom: 15,
+  maxZoom: 19
+}).setView(centroBarrio, 16);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
 }).addTo(map);
 
 let markerTemp = null;
+
 
 // --------------------------------------------
 // CARGAR REPORTES EN TIEMPO REAL
@@ -66,6 +82,9 @@ db.collection("reportes").onSnapshot(snapshot => {
   snapshot.docChanges().forEach(change => {
     if (change.type === "added") {
       const r = change.doc.data();
+
+      // No mostrar reportes fuera del barrio
+      if (!limitesBarrio.contains([r.lat, r.lng])) return;
 
       L.marker([r.lat, r.lng]).addTo(map)
         .bindPopup(`
@@ -78,11 +97,18 @@ db.collection("reportes").onSnapshot(snapshot => {
   });
 });
 
+
 // --------------------------------------------
 // CLICK EN MAPA = NUEVO REPORTE
 // --------------------------------------------
 map.on("click", async (e) => {
   const { lat, lng } = e.latlng;
+
+  // Evitar clic fuera del barrio
+  if (!limitesBarrio.contains([lat, lng])) {
+    alert("Solo podés reportar dentro del barrio La Estancia / Los Indios.");
+    return;
+  }
 
   const direccion = await obtenerDireccion(lat, lng);
   document.getElementById("direccion").value = direccion;
@@ -92,6 +118,7 @@ map.on("click", async (e) => {
 
   mostrarFormulario(lat, lng);
 });
+
 
 // --------------------------------------------
 // BOTÓN: UBICACIÓN ACTUAL
@@ -106,6 +133,12 @@ document.getElementById("btn-ubicacion").onclick = () => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
+    // Si está fuera del barrio → no permitir reportar
+    if (!limitesBarrio.contains([lat, lng])) {
+      alert("Tu ubicación actual está fuera del barrio.");
+      return;
+    }
+
     map.setView([lat, lng], 17);
 
     if (markerTemp) map.removeLayer(markerTemp);
@@ -117,6 +150,7 @@ document.getElementById("btn-ubicacion").onclick = () => {
     mostrarFormulario(lat, lng);
   });
 };
+
 
 // --------------------------------------------
 // REVERSE GEOCODING
@@ -143,6 +177,7 @@ async function obtenerDireccion(lat, lng) {
   }
 }
 
+
 // --------------------------------------------
 // FORMULARIO
 // --------------------------------------------
@@ -158,14 +193,10 @@ function mostrarFormulario(lat, lng) {
       return;
     }
 
-    const tipo = document.getElementById("tipo").value;
-    const descripcion = document.getElementById("descripcion").value;
-    const direccion = document.getElementById("direccion").value;
-
     db.collection("reportes").add({
-      tipo,
-      descripcion,
-      direccion,
+      tipo: document.getElementById("tipo").value,
+      descripcion: document.getElementById("descripcion").value,
+      direccion: document.getElementById("direccion").value,
       lat,
       lng,
       estado: "Nuevo",
