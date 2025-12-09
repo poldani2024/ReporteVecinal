@@ -14,9 +14,20 @@ btnLogout.onclick = () => auth.signOut();
 
 auth.onAuthStateChanged(user => {
   if (user) {
-    userInfo.textContent = "Sesión iniciada: " + user.displayName;
-    btnLogin.classList.add("hidden");
-    btnLogout.classList.remove("hidden");
+    // Crear documento del usuario si no existe
+const userRef = db.collection("users").doc(user.uid);
+
+userRef.get().then(doc => {
+  if (!doc.exists) {
+    // Usuario nuevo → asignar rol vecino
+    userRef.set({
+      nombre: user.displayName,
+      email: user.email,
+      rol: "vecino",
+      creado: new Date()
+    });
+  }
+});
   } else {
     userInfo.textContent = "";
     btnLogin.classList.remove("hidden");
