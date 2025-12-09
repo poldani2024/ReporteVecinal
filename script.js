@@ -52,11 +52,12 @@ auth.onAuthStateChanged(async (user) => {
 // --------------------------------------------
 
 // Coordenadas del barrio exacto (Castelli, San Sebastián, P. Oldani, Diaguitas)
+// ----- POLÍGONO DEL BARRIO -----
 const barrioCoords = [
-  [-32.89445155494477, -60.86894951411646], // Castelli & Diaguitas (NO)
-  [-32.89542413210965, -60.86356172032791], // Castelli & San Sebastián (NE)
-  [-32.86894951411646, -60.86638186564429], // Padre Oldani & San Sebastián (SE)
-  [-32.9057951598718, -60.86894951411646], // Padre Oldani & Diaguitas (SO)
+  [-32.92495, -60.82344], // NW - Castelli & Diaguitas
+  [-32.92500, -60.81702], // NE - Castelli & San Sebastián
+  [-32.92963, -60.81705], // SE - Padre Oldani & San Sebastián
+  [-32.92957, -60.82345]  // SW - Padre Oldani & Diaguitas
 ];
 
 const map = L.map("map", {
@@ -72,12 +73,14 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 // Polígono del barrio
-const poligono = L.polygon(barrioCoords, {
-  color: "#2ecc71",
-  fillColor: "#2ecc71",
-  fillOpacity: 0.2
+const barrioPolygon = L.polygon(barrioCoords, {
+  color: "green",
+  weight: 3,
+  fillColor: "#00FF00",
+  fillOpacity: 0.15
 }).addTo(map);
-
+// Ajustar el mapa al barrio
+map.fitBounds(barrioPolygon.getBounds());
 // Área fuera del barrio (sombreado)
 const world = [
   [90, -180],
