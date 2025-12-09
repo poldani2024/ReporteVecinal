@@ -1,60 +1,62 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
   <title>Reportes del Barrio</title>
-
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
 
   <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-  <!-- Firebase COMPAT -->
+  <!-- Firebase (Compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-  <!-- Tu inicialización -->
-  <script src="firebase.js"></script>
 </head>
-
 <body>
-  <h1>📍 Reportes del Barrio</h1>
 
+<h1>📍 Reportes del Barrio</h1>
+
+<!-- LOGIN -->
+<div id="login-area">
   <button id="btnLogin">Iniciar sesión con Google</button>
   <button id="btnLogout" class="hidden">Cerrar sesión</button>
+  <span id="userInfo"></span>
+</div>
 
-  <p id="userInfo"></p>
+<!-- ADMIN -->
+<a id="link-admin" class="hidden" href="admin.html">Panel de Administración</a>
 
-  <!-- Link admin -->
-  <a id="link-admin" href="admin.html" class="hidden">🔧 Panel de administración</a>
+<!-- MAPA -->
+<div id="map"></div>
 
-  <div id="map"></div>
+<button id="btn-ubicacion" class="btn-ubicacion">📍 Usar mi ubicación</button>
 
-  <button id="btn-ubicacion">📡 Usar mi ubicación</button>
+<!-- FORMULARIO -->
+<form id="report-form" class="hidden">
+  <h3>Nuevo reporte</h3>
 
-  <form id="report-form" class="hidden">
-    <h3>Nuevo reporte</h3>
+  <label>Tipo:</label>
+  <select id="tipo">
+    <option value="Falta de luz">Falta de luz</option>
+    <option value="Basura">Basura</option>
+    <option value="Inseguridad">Inseguridad</option>
+    <option value="Otro">Otro</option>
+  </select>
 
-    <label>Tipo:</label>
-    <select id="tipo">
-      <option value="Falta de luz">Falta de luz</option>
-      <option value="Basura">Basura</option>
-      <option value="Inseguridad">Inseguridad</option>
-      <option value="Otro">Otro</option>
-    </select>
+  <label>Descripción:</label>
+  <textarea id="descripcion"></textarea>
 
-    <label>Dirección:</label>
-    <input type="text" id="direccion" />
+  <label>Dirección:</label>
+  <input id="direccion" type="text">
 
-    <label>Descripción:</label>
-    <textarea id="descripcion"></textarea>
+  <button type="submit">Guardar reporte</button>
+</form>
 
-    <button type="submit">Guardar reporte</button>
-  </form>
-  <script src="https://unpkg.com/leaflet-pip/leaflet-pip.min.js"></script>
-  <script src="script.js"></script>
+<script src="firebase.js"></script>
+<script src="script.js"></script>
+
 </body>
 </html>
