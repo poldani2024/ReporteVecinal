@@ -1,1 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Administración</title>
 
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "ALZA...",
+      authDomain: "reportevecinal.firebaseapp.com",
+      projectId: "reportevecinal",
+      storageBucket: "reportevecinal.firebasestorage.app",
+      messagingSenderId: "42320775776",
+      appId: "1:42320775776:web:8e5305fba08d19bc8e5105"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+  </script>
+
+</head>
+<body>
+
+  <h2>Panel de Administración</h2>
+  <p>Solo personal autorizado.</p>
+
+  <table id="tabla-reportes">
+    <thead>
+      <tr>
+        <th>Tipo</th>
+        <th>Dirección</th>
+        <th>Descripción</th>
+        <th>Estado</th>
+        <th>Fecha</th>
+        <th>Usuario</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="admin.js"></script>
+
+</body>
+</html>
