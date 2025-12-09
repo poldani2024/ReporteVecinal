@@ -8,12 +8,12 @@ var scriptAuth = document.createElement("script");
 scriptAuth.src = "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 document.head.appendChild(scriptAuth);
 
-// Cargar Firebase Firestore
+// Cargar Firestore
 var scriptFirestore = document.createElement("script");
 scriptFirestore.src = "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 document.head.appendChild(scriptFirestore);
 
-// Inicializar cuando todo cargue
+// Inicializar Firebase cuando todo cargue
 scriptFirestore.onload = function () {
     const firebaseConfig = {
         apiKey: "AlzaSyB6477kA_dp_17XWE2Al8gSAIXRKG_NKSY",
@@ -30,4 +30,4 @@ scriptFirestore.onload = function () {
     window.db = firebase.firestore();
 
     console.log("🔥 Firebase cargado correctamente");
-}
+};
