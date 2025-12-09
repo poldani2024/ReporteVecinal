@@ -48,28 +48,48 @@ auth.onAuthStateChanged(async (user) => {
 
 
 // --------------------------------------------
-// LIMITES DEL BARRIO (La Estancia / Los Indios – Funes)
+// MAPA + BARRIO DELIMITADO
 // --------------------------------------------
-const limitesBarrio = L.latLngBounds(
-  [-32.9067875,-60.8689979],   // Sur-Oeste (Padre Oldani + Castelli)
-  [-32.8954455,-60.8661309]    // Norte-Este (Acequias del Aire + Las Heras)
-);
 
-const centroBarrio = [-32.93750, -60.80800];
+// Coordenadas del barrio exacto (Castelli, San Sebastián, P. Oldani, Diaguitas)
+const barrioCoords = [
+  [-32.92171, -60.82793], // Castelli & Diaguitas (NO)
+  [-32.92174, -60.81721], // Castelli & San Sebastián (NE)
+  [-32.93200, -60.81725], // Padre Oldani & San Sebastián (SE)
+  [-32.93205, -60.82801], // Padre Oldani & Diaguitas (SO)
+];
 
-
-// --------------------------------------------
-// MAPA RESTRINGIDO AL BARRIO
-// --------------------------------------------
 const map = L.map("map", {
-  maxBounds: limitesBarrio,    
-  maxBoundsViscosity: 1.0,    
-  minZoom: 15,
-  maxZoom: 19
-}).setView(centroBarrio, 16);
+  maxBounds: [  // no deja salir del barrio
+    [-32.918, -60.833], // Norte-oeste extra
+    [-32.936, -60.812]  // Sur-este extra
+  ],
+  maxBoundsViscosity: 1.0
+}).setView([-32.926, -60.823], 15);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
+}).addTo(map);
+
+// Polígono del barrio
+const poligono = L.polygon(barrioCoords, {
+  color: "#2ecc71",
+  fillColor: "#2ecc71",
+  fillOpacity: 0.2
+}).addTo(map);
+
+// Área fuera del barrio (sombreado)
+const world = [
+  [90, -180],
+  [90, 180],
+  [-90, 180],
+  [-90, -180]
+];
+
+L.polygon([world, barrioCoords], {
+  color: "black",
+  fillOpacity: 0.5,
+  stroke: false
 }).addTo(map);
 
 let markerTemp = null;
@@ -78,13 +98,10 @@ let markerTemp = null;
 // --------------------------------------------
 // CARGAR REPORTES EN TIEMPO REAL
 // --------------------------------------------
-db.collection("reportes").onSnapshot(snapshot => {
+db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
   snapshot.docChanges().forEach(change => {
     if (change.type === "added") {
       const r = change.doc.data();
-
-      // No mostrar reportes fuera del barrio
-      if (!limitesBarrio.contains([r.lat, r.lng])) return;
 
       L.marker([r.lat, r.lng]).addTo(map)
         .bindPopup(`
@@ -102,13 +119,14 @@ db.collection("reportes").onSnapshot(snapshot => {
 // CLICK EN MAPA = NUEVO REPORTE
 // --------------------------------------------
 map.on("click", async (e) => {
-  const { lat, lng } = e.latlng;
 
-  // Evitar clic fuera del barrio
-  if (!limitesBarrio.contains([lat, lng])) {
-    alert("Solo podés reportar dentro del barrio La Estancia / Los Indios.");
+  // Evita reportes fuera del barrio
+  if (!leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], poligono).length) {
+    alert("Solo podés reportar dentro del barrio.");
     return;
   }
+
+  const { lat, lng } = e.latlng;
 
   const direccion = await obtenerDireccion(lat, lng);
   document.getElementById("direccion").value = direccion;
@@ -133,8 +151,8 @@ document.getElementById("btn-ubicacion").onclick = () => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
-    // Si está fuera del barrio → no permitir reportar
-    if (!limitesBarrio.contains([lat, lng])) {
+    // Evita reportar fuera del barrio
+    if (!leafletPip.pointInLayer([lng, lat], poligono).length) {
       alert("Tu ubicación actual está fuera del barrio.");
       return;
     }
@@ -150,6 +168,7 @@ document.getElementById("btn-ubicacion").onclick = () => {
     mostrarFormulario(lat, lng);
   });
 };
+
 
 
 // --------------------------------------------
@@ -193,10 +212,14 @@ function mostrarFormulario(lat, lng) {
       return;
     }
 
+    const tipo = document.getElementById("tipo").value;
+    const descripcion = document.getElementById("descripcion").value;
+    const direccion = document.getElementById("direccion").value;
+
     db.collection("reportes").add({
-      tipo: document.getElementById("tipo").value,
-      descripcion: document.getElementById("descripcion").value,
-      direccion: document.getElementById("direccion").value,
+      tipo,
+      descripcion,
+      direccion,
       lat,
       lng,
       estado: "Nuevo",
