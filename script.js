@@ -48,10 +48,10 @@ auth.onAuthStateChanged(async (user) => {
 // POLÍGONO REAL DEL BARRIO (COORDENADAS EXACTAS TUYAS)
 // -------------------------------------------------------
 const barrioCoords = [
-  [-32.8944554860, -60.8689544126], // Castelli & Diaguitas
-  [-32.8945139156, -60.8636519262], // Castelli & San Sebastián
-  [-32.9058790221, -60.8636438608], // Padre Oldani & San Sebastián
-  [-32.9058811221, -60.8717944301]  // Padre Oldani & Diaguitas
+  [-32.89445750942049, -60.86894502418337], // Castelli & Diaguitas
+  [-32.89541319661298, -60.86354341802229], // Castelli & San Sebastián
+  [-32.90679922688998, -60.86634683607743], // Padre Oldani & San Sebastián
+  [-32.90581296671272, -60.87179211153017]  // Padre Oldani & Diaguitas
 ];
 
 // -------------------------------------------------------
