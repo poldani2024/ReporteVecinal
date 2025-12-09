@@ -32,7 +32,11 @@ auth.onAuthStateChanged(async (user) => {
     }
 
     const data = (await userRef.get()).data();
-    linkAdmin.classList.toggle("hidden", data.rol !== "admin");
+    if (data.rol === "admin") {
+      linkAdmin.classList.remove("hidden");
+    } else {
+      linkAdmin.classList.add("hidden");
+    }
 
   } else {
     userInfo.textContent = "";
@@ -44,65 +48,32 @@ auth.onAuthStateChanged(async (user) => {
 
 
 // --------------------------------------------
-// MAPA + BARRIO DELIMITADO
+// MAPA (SIN RESTRICCIÓN POR AHORA)
 // --------------------------------------------
-
-// Coordenadas del barrio exacto
-const barrioCoords = [
-  [-32.92495, -60.82344], // NW
-  [-32.92500, -60.81702], // NE
-  [-32.92963, -60.81705], // SE
-  [-32.92957, -60.82345], // SW
-  [-32.92495, -60.82344]  // Cerrar polígono
-];
-
-// Inicializar mapa CÉNTRICO en tu barrio
-const map = L.map("map", {
-  maxZoom: 19,
-}).setView([-32.9272, -60.8202], 16);
+const map = L.map("map").setView([-32.93, -60.82], 15); // zona Funes aprox
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
-}).addTo(map);
-
-// Dibujar polígono del barrio
-const barrioPolygon = L.polygon(barrioCoords, {
-  color: "green",
-  weight: 3,
-  fillColor: "#00FF00",
-  fillOpacity: 0.15
-}).addTo(map);
-
-// Ajustar vista exactamente al barrio
-map.fitBounds(barrioPolygon.getBounds());
-
-// SOMBREADO EXTERIOR CORRECTO
-const world = [
-  [90, -180],
-  [90, 180],
-  [-90, 180],
-  [-90, -180]
-];
-
-L.polygon([world, barrioCoords], {
-  color: "black",
-  fillOpacity: 0.45,
-  stroke: false
 }).addTo(map);
 
 let markerTemp = null;
 
 
 // --------------------------------------------
-// EVITAR REPORTES FUERA DEL BARRIO
+// LOGGER DE COORDENADAS (PARA DEFINIR BARRIO LUEGO)
 // --------------------------------------------
-function estaEnBarrio(lat, lng) {
-  return leafletPip.pointInLayer([lng, lat], barrioPolygon).length > 0;
+// Cada vez que hagas click en el mapa, vas a ver en la consola:
+// "CLICK EN: lat, lng"
+//
+// Abrí F12 → Console y anotá las 4 esquinas (Castelli/Diaguitas, Castelli/San Sebastián,
+// Oldani/San Sebastián, Oldani/Diaguitas). Con eso después armamos el polígono PERFECTO.
+function logClick(lat, lng) {
+  console.log("CLICK EN:", lat, lng);
 }
 
 
 // --------------------------------------------
-// CARGAR REPORTES
+// CARGAR REPORTES EN TIEMPO REAL
 // --------------------------------------------
 db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
   snapshot.docChanges().forEach(change => {
@@ -122,15 +93,13 @@ db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
 
 
 // --------------------------------------------
-// CLICK EN MAPA
+// CLICK EN MAPA = NUEVO REPORTE
 // --------------------------------------------
 map.on("click", async (e) => {
   const { lat, lng } = e.latlng;
 
-  if (!estaEnBarrio(lat, lng)) {
-    alert("Solo podés reportar dentro del barrio.");
-    return;
-  }
+  // Log de coordenadas para que después definamos bien el barrio
+  logClick(lat, lng);
 
   const direccion = await obtenerDireccion(lat, lng);
   document.getElementById("direccion").value = direccion;
@@ -143,7 +112,7 @@ map.on("click", async (e) => {
 
 
 // --------------------------------------------
-// UBICACIÓN ACTUAL
+// BOTÓN: UBICACIÓN ACTUAL
 // --------------------------------------------
 document.getElementById("btn-ubicacion").onclick = () => {
   if (!navigator.geolocation) {
@@ -155,10 +124,8 @@ document.getElementById("btn-ubicacion").onclick = () => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
-    if (!estaEnBarrio(lat, lng)) {
-      alert("Tu ubicación actual está fuera del barrio.");
-      return;
-    }
+    // También logueamos la ubicación actual
+    logClick(lat, lng);
 
     map.setView([lat, lng], 17);
 
@@ -171,6 +138,7 @@ document.getElementById("btn-ubicacion").onclick = () => {
     mostrarFormulario(lat, lng);
   });
 };
+
 
 
 // --------------------------------------------
