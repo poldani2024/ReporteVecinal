@@ -19,11 +19,12 @@ auth.onAuthStateChanged(async (user) => {
     btnLogin.classList.add("hidden");
     btnLogout.classList.remove("hidden");
 
-    const userRef = db.collection("users").doc(user.uid);
-    const snap = await userRef.get();
+    // Crear documento si no existe
+    const ref = db.collection("users").doc(user.uid);
+    const snap = await ref.get();
 
     if (!snap.exists) {
-      await userRef.set({
+      await ref.set({
         nombre: user.displayName,
         email: user.email,
         rol: "vecino",
@@ -31,7 +32,7 @@ auth.onAuthStateChanged(async (user) => {
       });
     }
 
-    const data = (await userRef.get()).data();
+    const data = (await ref.get()).data();
     linkAdmin.classList.toggle("hidden", data.rol !== "admin");
 
   } else {
@@ -43,94 +44,95 @@ auth.onAuthStateChanged(async (user) => {
 });
 
 
-// --------------------------------------------
-// MAPA + BARRIO DELIMITADO
-// --------------------------------------------
-
-// Coordenadas reales del barrio (en orden)
+// -------------------------------------------------------
+// POLÍGONO REAL DEL BARRIO (COORDENADAS EXACTAS TUYAS)
+// -------------------------------------------------------
 const barrioCoords = [
-  [-32.894457509420499, -60.868945024183375], // NO - Castelli & Diaguitas
-  [-32.895413196612988, -60.86354341802229],  // NE - Castelli & San Sebastián
-  [-32.90679922688998,  -60.86634683607743],  // SE - San Sebastián & Padre Oldani
-  [-32.905812966712726, -60.871792111530176]  // SO - Padre Oldani & Diaguitas
+  [-32.8944554860, -60.8689544126], // Castelli & Diaguitas
+  [-32.8945139156, -60.8636519262], // Castelli & San Sebastián
+  [-32.9058790221, -60.8636438608], // Padre Oldani & San Sebastián
+  [-32.9058811221, -60.8717944301]  // Padre Oldani & Diaguitas
 ];
 
-// Bounds rectangulares del barrio (para validación simple)
-const barrioBounds = L.latLngBounds(barrioCoords);
+// -------------------------------------------------------
+// POLÍGONO INTERNO (RESTRINGIDO) — APROX. 8–10 m hacia dentro
+// Esto evita que "toque borde" y lo tome como válido.
+// -------------------------------------------------------
+const shrink = 0.00007; // 7–8 metros aprox
 
-// Inicializar mapa centrado en el barrio
+const barrioCoordsRestr = [
+  [barrioCoords[0][0] + shrink, barrioCoords[0][1] + shrink],
+  [barrioCoords[1][0] + shrink, barrioCoords[1][1] - shrink],
+  [barrioCoords[2][0] - shrink, barrioCoords[2][1] - shrink],
+  [barrioCoords[3][0] - shrink, barrioCoords[3][1] + shrink]
+];
+
+
+// --------------------------------------------
+// MAPA
+// --------------------------------------------
 const map = L.map("map", {
-  maxZoom: 19
-}).fitBounds(barrioBounds);
+  doubleClickZoom: true,
+  scrollWheelZoom: true
+}).setView([-32.9000, -60.8670], 15);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
 }).addTo(map);
 
-// Polígono del barrio
-const barrioPolygon = L.polygon([...barrioCoords, barrioCoords[0]], {
+// Polígono externo visible (barrio real)
+const poligonoBarrio = L.polygon(barrioCoords, {
   color: "green",
-  weight: 3,
-  fillColor: "#00FF00",
-  fillOpacity: 0.15
+  weight: 4,
+  fillOpacity: 0.05
 }).addTo(map);
 
-// Sombreado exterior (solo estético)
-const world = [
-  [90, -180],
-  [90, 180],
-  [-90, 180],
-  [-90, -180]
-];
-
-L.polygon([world, barrioPolygon.getLatLngs()[0]], {
-  color: "black",
-  fillOpacity: 0.45,
-  stroke: false
-}).addTo(map);
+// Polígono interno para validación estricta (no visible)
+const poligonoRestr = L.polygon(barrioCoordsRestr);
 
 
 // --------------------------------------------
-// FUNCION: ¿Está dentro del barrio?
+// CENTRAR EL MAPA AL BARRIO PERFECTAMENTE
 // --------------------------------------------
-function estaEnBarrio(lat, lng) {
-  return barrioBounds.contains([lat, lng]);
-}
-
+map.fitBounds(poligonoBarrio.getBounds());
 
 let markerTemp = null;
 
 
 // --------------------------------------------
-// CARGAR REPORTES EXISTENTES
+// CARGAR REPORTES EN TIEMPO REAL
 // --------------------------------------------
-db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
-  snapshot.docChanges().forEach(change => {
-    if (change.type === "added") {
-      const r = change.doc.data();
-
-      L.marker([r.lat, r.lng]).addTo(map)
-        .bindPopup(`
-          <b>${r.tipo}</b><br>
-          ${r.descripcion}<br>
-          ${r.direccion}<br>
-          <i>${r.usuarioNombre}</i>
-        `);
-    }
+db.collection("reportes")
+  .orderBy("fecha", "desc")
+  .onSnapshot(snapshot => {
+    snapshot.docChanges().forEach(change => {
+      if (change.type === "added") {
+        const r = change.doc.data();
+        L.marker([r.lat, r.lng]).addTo(map)
+          .bindPopup(`
+            <b>${r.tipo}</b><br>
+            ${r.descripcion}<br>
+            ${r.direccion}<br>
+            <i>${r.usuarioNombre}</i>
+          `);
+      }
+    });
   });
-});
 
 
-// --------------------------------------------
-// CLICK SIMPLE EN MAPA = NUEVO REPORTE
-// --------------------------------------------
+// --------------------------------------------------
+// CLICK SIMPLE = MARCAR PUNTO (SOLO DENTRO DEL BARRIO)
+// --------------------------------------------------
 map.on("click", async (e) => {
-  const { lat, lng } = e.latlng;
 
-  if (!estaEnBarrio(lat, lng)) {
-    alert("Solo podés reportar dentro del barrio.");
+  // Validación estricta
+  const inside = leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], poligonoRestr);
+  if (inside.length === 0) {
+    alert("El punto está fuera del barrio.");
     return;
   }
+
+  const { lat, lng } = e.latlng;
 
   const direccion = await obtenerDireccion(lat, lng);
   document.getElementById("direccion").value = direccion;
@@ -143,19 +145,15 @@ map.on("click", async (e) => {
 
 
 // --------------------------------------------
-// BOTÓN: UBICACIÓN ACTUAL
+// BOTÓN UBICACIÓN ACTUAL
 // --------------------------------------------
 document.getElementById("btn-ubicacion").onclick = () => {
-  if (!navigator.geolocation) {
-    alert("GPS no soportado.");
-    return;
-  }
-
   navigator.geolocation.getCurrentPosition(async (pos) => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
-    if (!estaEnBarrio(lat, lng)) {
+    const inside = leafletPip.pointInLayer([lng, lat], poligonoRestr);
+    if (inside.length === 0) {
       alert("Tu ubicación está fuera del barrio.");
       return;
     }
@@ -180,18 +178,12 @@ async function obtenerDireccion(lat, lng) {
   const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=es`;
 
   try {
-    const resp = await fetch(url);
-    const data = await resp.json();
+    const data = await (await fetch(url)).json();
 
     if (data.address) {
-      const calle = data.address.road || "";
-      const altura = data.address.house_number || "";
-      const barrio = data.address.suburb || "";
-      const ciudad = data.address.city || data.address.town || "";
-      return `${calle} ${altura}, ${barrio}, ${ciudad}`;
+      return `${data.address.road || ""} ${data.address.house_number || ""}, ${data.address.suburb || ""}, ${data.address.city || ""}`;
     }
-
-    return data.display_name || "Dirección no disponible";
+    return "Dirección no disponible";
 
   } catch {
     return "Dirección no disponible";
@@ -200,7 +192,7 @@ async function obtenerDireccion(lat, lng) {
 
 
 // --------------------------------------------
-// FORMULARIO DE NUEVO REPORTE
+// FORMULARIO DE REPORTE
 // --------------------------------------------
 function mostrarFormulario(lat, lng) {
   const form = document.getElementById("report-form");
@@ -210,18 +202,14 @@ function mostrarFormulario(lat, lng) {
     ev.preventDefault();
 
     if (!auth.currentUser) {
-      alert("Debés iniciar sesión con Google.");
+      alert("Debés iniciar sesión.");
       return;
     }
 
-    const tipo = document.getElementById("tipo").value;
-    const descripcion = document.getElementById("descripcion").value;
-    const direccion = document.getElementById("direccion").value;
-
     db.collection("reportes").add({
-      tipo,
-      descripcion,
-      direccion,
+      tipo: document.getElementById("tipo").value,
+      descripcion: document.getElementById("descripcion").value,
+      direccion: document.getElementById("direccion").value,
       lat,
       lng,
       estado: "Nuevo",
@@ -234,4 +222,4 @@ function mostrarFormulario(lat, lng) {
     form.classList.add("hidden");
     alert("Reporte guardado");
   };
-}
+   }
