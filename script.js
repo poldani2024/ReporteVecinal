@@ -4,57 +4,49 @@
 const btnLogin = document.getElementById("btnLogin");
 const btnLogout = document.getElementById("btnLogout");
 const userInfo = document.getElementById("userInfo");
+const linkAdmin = document.getElementById("link-admin");
 
 btnLogin.onclick = () => {
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(err => {
-    console.error("Error login:", err);
-  });
+  auth.signInWithPopup(provider).catch(err => console.error(err));
 };
 
 btnLogout.onclick = () => auth.signOut();
 
-
-// --------------------------------------------
-// AUTH STATE CHANGE
-// --------------------------------------------
 auth.onAuthStateChanged(async (user) => {
   if (user) {
-    console.log("Usuario logueado:", user.displayName);
-
-    // MOSTRAR UI LOGUEADA
-    userInfo.textContent = "Sesión iniciada: " + user.displayName;
+    userInfo.textContent = `Conectado como: ${user.displayName}`;
     btnLogin.classList.add("hidden");
     btnLogout.classList.remove("hidden");
 
-    // Crear documento del usuario si no existe
-    try {
-      const userRef = db.collection("users").doc(user.uid);
-      const docSnap = await userRef.get();
+    // Crear el documento si no existe
+    const userRef = db.collection("users").doc(user.uid);
+    const snap = await userRef.get();
 
-      if (!docSnap.exists) {
-        await userRef.set({
-          nombre: user.displayName,
-          email: user.email,
-          rol: "vecino",
-          creado: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        console.log("Usuario nuevo creado en Firestore");
-      }
-    } catch (error) {
-      console.error("Error creando usuario:", error);
+    if (!snap.exists) {
+      await userRef.set({
+        nombre: user.displayName,
+        email: user.email,
+        rol: "vecino",
+        creado: new Date()
+      });
+    }
+
+    // Mostrar botón admin si corresponde
+    const data = (await userRef.get()).data();
+    if (data.rol === "admin") {
+      linkAdmin.classList.remove("hidden");
+    } else {
+      linkAdmin.classList.add("hidden");
     }
 
   } else {
-    console.log("Usuario no logueado");
-
-    // MOSTRAR UI DESLOGUEADA
     userInfo.textContent = "";
     btnLogin.classList.remove("hidden");
     btnLogout.classList.add("hidden");
+    linkAdmin.classList.add("hidden");
   }
 });
-
 
 // --------------------------------------------
 // MAPA
@@ -66,7 +58,6 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 let markerTemp = null;
-
 
 // --------------------------------------------
 // CARGAR REPORTES EN TIEMPO REAL
@@ -87,7 +78,6 @@ db.collection("reportes").onSnapshot(snapshot => {
   });
 });
 
-
 // --------------------------------------------
 // CLICK EN MAPA = NUEVO REPORTE
 // --------------------------------------------
@@ -102,7 +92,6 @@ map.on("click", async (e) => {
 
   mostrarFormulario(lat, lng);
 });
-
 
 // --------------------------------------------
 // BOTÓN: UBICACIÓN ACTUAL
@@ -129,7 +118,6 @@ document.getElementById("btn-ubicacion").onclick = () => {
   });
 };
 
-
 // --------------------------------------------
 // REVERSE GEOCODING
 // --------------------------------------------
@@ -150,15 +138,13 @@ async function obtenerDireccion(lat, lng) {
 
     return data.display_name || "Dirección no disponible";
 
-  } catch (e) {
-    console.error("Error reverse geocoding:", e);
+  } catch {
     return "Dirección no disponible";
   }
 }
 
-
 // --------------------------------------------
-// FORMULARIO DE NUEVO REPORTE
+// FORMULARIO
 // --------------------------------------------
 function mostrarFormulario(lat, lng) {
   const form = document.getElementById("report-form");
@@ -186,13 +172,10 @@ function mostrarFormulario(lat, lng) {
       usuarioId: auth.currentUser.uid,
       usuarioNombre: auth.currentUser.displayName,
       fecha: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(() => {
-      form.reset();
-      form.classList.add("hidden");
-      alert("Reporte guardado");
-    }).catch(err => {
-      console.error("Error guardando reporte:", err);
-      alert("Error al guardar el reporte");
     });
+
+    form.reset();
+    form.classList.add("hidden");
+    alert("Reporte guardado");
   };
 }
