@@ -32,11 +32,7 @@ auth.onAuthStateChanged(async (user) => {
     }
 
     const data = (await userRef.get()).data();
-    if (data.rol === "admin") {
-      linkAdmin.classList.remove("hidden");
-    } else {
-      linkAdmin.classList.add("hidden");
-    }
+    linkAdmin.classList.toggle("hidden", data.rol !== "admin");
 
   } else {
     userInfo.textContent = "";
@@ -51,37 +47,36 @@ auth.onAuthStateChanged(async (user) => {
 // MAPA + BARRIO DELIMITADO
 // --------------------------------------------
 
-// Coordenadas del barrio exacto (Castelli, San Sebastián, P. Oldani, Diaguitas)
-// ----- POLÍGONO DEL BARRIO -----
+// Coordenadas del barrio exacto
 const barrioCoords = [
-  [-32.92495, -60.82344], // NW - Castelli & Diaguitas
-  [-32.92500, -60.81702], // NE - Castelli & San Sebastián
-  [-32.92963, -60.81705], // SE - Padre Oldani & San Sebastián
-  [-32.92957, -60.82345]  // SW - Padre Oldani & Diaguitas
+  [-32.92495, -60.82344], // NW
+  [-32.92500, -60.81702], // NE
+  [-32.92963, -60.81705], // SE
+  [-32.92957, -60.82345], // SW
+  [-32.92495, -60.82344]  // Cerrar polígono
 ];
 
+// Inicializar mapa CÉNTRICO en tu barrio
 const map = L.map("map", {
-  maxBounds: [  // no deja salir del barrio
-    [-32.89444, -60.86897], // Norte-oeste extra
-    [-32.86894, -60.86894]  // Sur-este extra
-  ],
-  maxBoundsViscosity: 1.0
-}).setView([-32.9268, -60.8232], 16);
+  maxZoom: 19,
+}).setView([-32.9272, -60.8202], 16);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19
 }).addTo(map);
 
-// Polígono del barrio
+// Dibujar polígono del barrio
 const barrioPolygon = L.polygon(barrioCoords, {
   color: "green",
   weight: 3,
   fillColor: "#00FF00",
   fillOpacity: 0.15
 }).addTo(map);
-// Ajustar el mapa al barrio
+
+// Ajustar vista exactamente al barrio
 map.fitBounds(barrioPolygon.getBounds());
-// Área fuera del barrio (sombreado)
+
+// SOMBREADO EXTERIOR CORRECTO
 const world = [
   [90, -180],
   [90, 180],
@@ -91,7 +86,7 @@ const world = [
 
 L.polygon([world, barrioCoords], {
   color: "black",
-  fillOpacity: 0.5,
+  fillOpacity: 0.45,
   stroke: false
 }).addTo(map);
 
@@ -99,7 +94,15 @@ let markerTemp = null;
 
 
 // --------------------------------------------
-// CARGAR REPORTES EN TIEMPO REAL
+// EVITAR REPORTES FUERA DEL BARRIO
+// --------------------------------------------
+function estaEnBarrio(lat, lng) {
+  return leafletPip.pointInLayer([lng, lat], barrioPolygon).length > 0;
+}
+
+
+// --------------------------------------------
+// CARGAR REPORTES
 // --------------------------------------------
 db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
   snapshot.docChanges().forEach(change => {
@@ -119,17 +122,15 @@ db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
 
 
 // --------------------------------------------
-// CLICK EN MAPA = NUEVO REPORTE
+// CLICK EN MAPA
 // --------------------------------------------
 map.on("click", async (e) => {
+  const { lat, lng } = e.latlng;
 
-  // Evita reportes fuera del barrio
-  if (!leafletPip.pointInLayer([e.latlng.lng, e.latlng.lat], poligono).length) {
+  if (!estaEnBarrio(lat, lng)) {
     alert("Solo podés reportar dentro del barrio.");
     return;
   }
-
-  const { lat, lng } = e.latlng;
 
   const direccion = await obtenerDireccion(lat, lng);
   document.getElementById("direccion").value = direccion;
@@ -142,7 +143,7 @@ map.on("click", async (e) => {
 
 
 // --------------------------------------------
-// BOTÓN: UBICACIÓN ACTUAL
+// UBICACIÓN ACTUAL
 // --------------------------------------------
 document.getElementById("btn-ubicacion").onclick = () => {
   if (!navigator.geolocation) {
@@ -154,8 +155,7 @@ document.getElementById("btn-ubicacion").onclick = () => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
-    // Evita reportar fuera del barrio
-    if (!leafletPip.pointInLayer([lng, lat], poligono).length) {
+    if (!estaEnBarrio(lat, lng)) {
       alert("Tu ubicación actual está fuera del barrio.");
       return;
     }
@@ -171,7 +171,6 @@ document.getElementById("btn-ubicacion").onclick = () => {
     mostrarFormulario(lat, lng);
   });
 };
-
 
 
 // --------------------------------------------
