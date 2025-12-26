@@ -12,6 +12,10 @@ html, body {
   margin: 0;
   padding: 0;
   background: #fafafa;
+
+  /* Evitar scroll horizontal */
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 /* ---------------------------------------------------
@@ -24,6 +28,7 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-sizing: border-box;
 }
 
 .title {
@@ -37,9 +42,12 @@ html, body {
   width: min(100%, 1024px);
   margin: 0 auto;
   padding: 16px;
+  box-sizing: border-box;
 }
 
-/* Botón de peligro (eliminar) */
+/* ---------------------------------------------------
+   Botón de peligro (eliminar)
+--------------------------------------------------- */
 .btn-danger {
   background: #D32F2F;
   color: #fff;
@@ -48,10 +56,7 @@ html, body {
   border-radius: 8px;
   cursor: pointer;
 }
-
-.btn-danger:hover {
-  background: #B71C1C;
-}
+.btn-danger:hover { background: #B71C1C; }
 
 /* ---------------------------------------------------
    Login/Admin
@@ -61,11 +66,7 @@ html, body {
   gap: 8px;
   align-items: center;
 }
-
-.muted {
-  color: #666;
-  font-size: 0.95rem;
-}
+.muted { color: #666; font-size: 0.95rem; }
 
 /* ---------------------------------------------------
    Botones
@@ -81,25 +82,16 @@ button {
   cursor: pointer;
   transition: background 0.2s ease;
 }
-
-button:hover {
-  background: #f0f0f0;
-}
+button:hover { background: #f0f0f0; }
 
 .btn-primary {
   background: #1976D2;
   color: #fff;
   border: 1px solid #1565C0;
 }
+.btn-primary:hover { background: #1565C0; }
 
-.btn-primary:hover {
-  background: #1565C0;
-}
-
-.btn-secondary {
-  background: #e8e8e8;
-}
-
+.btn-secondary { background: #e8e8e8; }
 .btn-link {
   background: transparent;
   border: none;
@@ -110,9 +102,7 @@ button:hover {
 }
 
 /* Ocultos */
-.hidden {
-  display: none !important;
-}
+.hidden { display: none !important; }
 
 /* ---------------------------------------------------
    Mapa
@@ -123,12 +113,10 @@ button:hover {
   width: 100%;
   border: 1px solid #e4e4e4;
   border-radius: 12px;
-  margin: 12px 16px;
+  margin: 12px auto;
+  box-sizing: border-box;
 }
-
-.btn-ubicacion {
-  margin: 0 16px 12px;
-}
+.btn-ubicacion { margin: 0 16px 12px; }
 
 /* Leaflet popups y tooltips */
 .leaflet-container,
@@ -137,106 +125,25 @@ button:hover {
   font-family: inherit;
   font-size: 14px;
 }
+.leaflet-popup-content {
+  max-width: 80vw;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
 
 /* ---------------------------------------------------
    Mensaje zona
 --------------------------------------------------- */
 .zone-warning {
-  margin: 0 16px;
+  margin: 0 auto;
   padding: 12px 14px;
   border: 2px solid #B71C1C;
   background: #FFEBEE;
   color: #B71C1C;
   border-radius: 10px;
   font-weight: 500;
-}
-
-/* --- Anti overflow global en móviles --- */
-html, body {
-  max-width: 100%;
-  overflow-x: hidden;              /* Evita scroll horizontal */
-}
-
-/* Asegurar que los contenedores nunca excedan el ancho */
-.container,
-.header,
-.card,
-.form,
-.callout,
-.table-responsive {
-  max-width: 100%;
-}
-
-/* Map y bloques con márgenes: que respeten el ancho */
-#map {
-  width: 100%;
-  margin-left: 16px;
-  margin-right: 16px;
-  box-sizing: border-box;          /* Incluye borde y padding en el cálculo */
-}
-
-/* En móviles, reducir márgenes para que no sumen >100% */
-@media (max-width: 520px) {
-  .container { padding: 12px; }
-  #map { margin: 8px 12px; }
-  .form, .card { margin: 8px 12px 16px; }
-  .callout { margin: 12px auto 20px; }
-}
-
-/* Tabla: envolver y permitir scroll horizontal, sin romper layout */
-.table-responsive {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;   /* scroll suave en iOS */
-}
-
-/* Tabla: usar border-box para que los bordes no sumen ancho extra */
-.data-table,
-.data-table thead th,
-.data-table tbody td {
   box-sizing: border-box;
-}
-
-/* Cabecera sticky: mantener ancho y evitar “estirar” */
-.data-table thead th {
-  position: sticky;
-  top: 0;
-}
-
-/* Celdas: permitir corte de palabras/URLs largas */
-.data-table thead th,
-.data-table tbody td {
-  word-wrap: break-word;
-  overflow-wrap: anywhere;  /* corta texto largo sin espacios */
-}
-
-/* Íconos, imágenes y SVG: que nunca excedan el contenedor */
-img, svg {
-  max-width: 100%;
-  height: auto;
-}
-
-/* Callout: asegurar ancho máx. sin sobrepasar */
-.callout {
-  width: 100%;                      /* en móviles usa 100% */
-  padding: 16px;                    /* menor padding en pantallas chicas */
-  box-sizing: border-box;
-}
-
-/* Botones: al 100% en móviles para evitar empujes laterales */
-@media (max-width: 520px) {
-  button {
-    width: 100%;
-  }
-  .form-actions {
-    flex-direction: column;
-  }
-}
-
-/* Leaflet popup: hereda fuente y evita ancho excesivo */
-.leaflet-popup-content {
-  max-width: 80vw;                  /* popup no excede viewport */
-  word-wrap: break-word;
-  overflow-wrap: anywhere;
+  max-width: calc(100% - 24px);
 }
 
 /* ---------------------------------------------------
@@ -246,21 +153,13 @@ img, svg {
   border: 1px solid #e4e4e4;
   border-radius: 12px;
   padding: 16px;
-  margin: 0 16px 24px;
+  margin: 0 auto 24px;
   background: #fff;
+  box-sizing: border-box;
+  max-width: calc(100% - 24px);
 }
-
-.form h3 {
-  margin-top: 0;
-  font-weight: 700;
-}
-
-.form label {
-  display: block;
-  margin-top: 10px;
-  font-weight: 500;
-}
-
+.form h3 { margin-top: 0; font-weight: 700; }
+.form label { display: block; margin-top: 10px; font-weight: 500; }
 .form textarea,
 .form input,
 .form select {
@@ -271,118 +170,94 @@ img, svg {
   border-radius: 10px;
   font-size: 1rem;
   font-family: inherit;
+  box-sizing: border-box;
 }
-
-.form textarea {
-  min-height: 80px;
-}
-
-.form-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 12px;
-}
+.form textarea { min-height: 80px; }
+.form-actions { display: flex; gap: 10px; margin-top: 12px; }
 
 /* ---------------------------------------------------
-   Tarjetas y tabla en admin
+   Tabla (admin) — sin limitaciones en móvil
 --------------------------------------------------- */
-
-/* Tabla con líneas más definidas */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  max-width: 100%;
+}
 .data-table {
-  border-collapse: collapse; /* Cambiamos a collapse para bordes continuos */
+  width: max-content; /* permite ancho natural */
+  min-width: 100%;
+  border-collapse: collapse;
   background: #fff;
   font-size: 14px;
-  border: 1px solid #ccc; /* borde externo */
+  border: 1px solid #ccc;
 }
-
 .data-table thead th {
+  position: sticky;
+  top: 0;
   background: #f7f9fb;
   color: #334;
   font-weight: 700;
   text-align: left;
   padding: 10px 12px;
-  border: 1px solid #ccc; /* borde en cabecera */
+  border: 1px solid #ccc;
+  background-clip: padding-box;
+  white-space: nowrap; /* evita cortes */
 }
-
 .data-table tbody td {
   padding: 10px 12px;
-  border: 1px solid #ddd; /* bordes internos */
+  border: 1px solid #ddd;
   color: #222;
   vertical-align: top;
+  white-space: nowrap;
 }
+.table--striped tbody tr:nth-child(odd) { background: #fcfcfc; }
+.table--hover tbody tr:hover { background: #eef6ff; }
 
-.table--striped tbody tr:nth-child(odd) {
-  background: #fcfcfc;
-}
-
-.table--hover tbody tr:hover {
-  background: #eef6ff;
-}
-
-
-
-/* --- Callout municipal (aviso destacado) — ROJO/NARANJA (fix mobile overflow) --- */
+/* ---------------------------------------------------
+   Callout municipal (aviso destacado)
+--------------------------------------------------- */
 .callout {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 16px;
   align-items: start;
-
-  /* Color / estilo */
   border: 2px solid #C62828;
   background: #FFE0B2;
   border-radius: 16px;
   box-shadow: 0 8px 20px rgba(198, 40, 40, 0.12);
-
-  /* Mobile-first: usar ancho total y márgenes controlados */
   width: 100%;
-  padding: 16px;           /* padding parejo */
-  margin: 12px 12px 20px;  /* margen lateral fijo; evita sumas > 100% */
-  box-sizing: border-box;  /* incluye borde/padding en el cálculo del ancho */
+  padding: 16px;
+  margin: 12px auto 20px;
+  box-sizing: border-box;
+  max-width: calc(100% - 24px);
 }
-
-/* En pantallas más grandes, aplicamos un ancho “bonito” sin desbordar */
 @media (min-width: 680px) {
   .callout {
     margin: 16px auto 28px;
-    /* o bien: max-width + padding controlado */
     max-width: 1000px;
-    width: calc(100% - 32px); /* respeta 16px laterales combinados */
+    width: calc(100% - 32px);
   }
 }
-
-/* Asegurar quiebre de texto/URLs largas dentro del callout */
-.callout__content p,
-.callout__link {
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
-
-.callout__icon {
-  display: grid;
-  place-items: center;
-}
-
+.callout__icon { display: grid; place-items: center; }
 .callout__content h2 {
   margin: 0 0 8px 0;
   font-size: 1.25rem;
-  color: #7F0000;                    /* rojo oscuro para el título */
+  color: #7F0000;
 }
-
 .callout__content p {
   margin: 8px 0;
-  color: #4A2A2A;                    /* texto con tinte marrón/rojo */
+  color: #4A2A2A;
   line-height: 1.55;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
-
 .callout__link {
-  color: #B71C1C;                    /* rojo para el enlace */
+  color: #B71C1C;
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-
 .callout__link:hover,
 .callout__link:focus {
   color: #C62828;
@@ -390,8 +265,18 @@ img, svg {
   border-radius: 6px;
   outline: none;
 }
-
-/* Responsivo */
 @media (max-width: 520px) {
   .callout { grid-template-columns: 1fr; }
+}
+
+/* ---------------------------------------------------
+   Responsivo
+--------------------------------------------------- */
+@media (max-width: 520px) {
+  .container { padding: 12px; }
+  #map { margin: 8px auto; }
+  .form { margin: 8px auto 16px; }
+  .callout { margin: 8px auto 16px; }
+  button { width: 100%; }
+  .form-actions { flex-direction: column; gap: 8px; }
 }
