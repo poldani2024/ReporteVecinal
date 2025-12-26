@@ -1,90 +1,75 @@
 
-/* style.css (al principio del archivo) */
+/* ---------------------------------------------------
+   Fuente global: Montserrat (fallback Verdana)
+--------------------------------------------------- */
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap');
 
-/* style.css */
 html, body {
   font-family: 'Montserrat', Verdana, sans-serif;
-  font-size: 16px;       /* opcional */
-  line-height: 1.5;      /* opcional */
-  color: #222;           /* opcional */
-}
-
-/* Encabezados más “limpios” */
-h1, h2, h3 {
-  font-weight: 700;
-  letter-spacing: 0.3px; /* opcional */
-}
-
-/* Botones y tabla, heredan la misma fuente (por si tenían overrides) */
-button,
-.data-table,
-.data-table th,
-.data-table td {
-  font-family: inherit;
-}
-
-/* Leaflet (algunos temas fijan otra fuente); forzamos herencia */
-.leaflet-container,
-.leaflet-popup-content,
-.leaflet-tooltip {
-  font-family: inherit;
-}
-
-/* --- Tabla moderna --- */
-.data-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: #fff;
-  border: 1px solid #e4e4e4;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.data-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: #f7f9fb;
-  color: #334;
-  font-weight: 700;
-  text-align: left;
-  padding: 10px 12px;
-  border-bottom: 1px solid #e4e4e4;
-}
-
-.data-table tbody td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  font-size: 16px;
+  line-height: 1.5;
   color: #222;
-  vertical-align: top;
+  margin: 0;
+  padding: 0;
+  background: #fafafa;
 }
 
-.table--striped tbody tr:nth-child(odd) {
-  background: #fcfcfc;
-}
-
-.table--hover tbody tr:hover {
-  background: #eef6ff;
-}
-
-.table-responsive {
-  overflow: auto;
-}
-
-/* Toolbar de tabla */
-.table-toolbar {
+/* ---------------------------------------------------
+   Encabezado y layout
+--------------------------------------------------- */
+.header {
+  padding: 16px;
+  border-bottom: 1px solid #e7e7e7;
+  background: #fff;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
+  align-items: center;
 }
 
-.toolbar-actions {
+.title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1B5E20;
+}
+
+.container {
+  width: min(100%, 1024px);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ---------------------------------------------------
+   Login/Admin
+--------------------------------------------------- */
+.login-area {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.muted {
+  color: #666;
+  font-size: 0.95rem;
+}
+
+/* ---------------------------------------------------
+   Botones
+--------------------------------------------------- */
+button {
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #cfd8dc;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+button:hover {
+  background: #f0f0f0;
 }
 
 .btn-primary {
@@ -97,7 +82,10 @@ button,
   background: #1565C0;
 }
 
-/* Botón enlace */
+.btn-secondary {
+  background: #e8e8e8;
+}
+
 .btn-link {
   background: transparent;
   border: none;
@@ -107,14 +95,92 @@ button,
   padding: 0;
 }
 
-/* Responsivo: columnas largas en móviles */
-@media (max-width: 680px) {
-  .data-table thead th:nth-child(3),
-  .data-table tbody td:nth-child(3) { /* Descripción */
-    min-width: 240px;
-  }
-  .data-table thead th:nth-child(2),
-  .data-table tbody td:nth-child(2) { /* Dirección */
-    min-width: 220px;
-  }
+/* Ocultos */
+.hidden {
+  display: none !important;
 }
+
+/* ---------------------------------------------------
+   Mapa
+--------------------------------------------------- */
+#map {
+  height: 60vh;
+  min-height: 380px;
+  width: 100%;
+  border: 1px solid #e4e4e4;
+  border-radius: 12px;
+  margin: 12px 16px;
+}
+
+.btn-ubicacion {
+  margin: 0 16px 12px;
+}
+
+/* Leaflet popups y tooltips */
+.leaflet-container,
+.leaflet-popup-content,
+.leaflet-tooltip {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------
+   Mensaje zona
+--------------------------------------------------- */
+.zone-warning {
+  margin: 0 16px;
+  padding: 12px 14px;
+  border: 2px solid #B71C1C;
+  background: #FFEBEE;
+  color: #B71C1C;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------
+   Formulario
+--------------------------------------------------- */
+.form {
+  border: 1px solid #e4e4e4;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 0 16px 24px;
+  background: #fff;
+}
+
+.form h3 {
+  margin-top: 0;
+  font-weight: 700;
+}
+
+.form label {
+  display: block;
+  margin-top: 10px;
+  font-weight: 500;
+}
+
+.form textarea,
+.form input,
+.form select {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #cfd8dc;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.form textarea {
+  min-height: 80px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* ---------------------------------------------------
+   Tarjetas y tabla en admin
+--------------------------------------------------- */
