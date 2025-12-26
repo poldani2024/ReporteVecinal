@@ -1,0 +1,17 @@
+
+{
+  "name": "reportevecinal-functions",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "18" },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "axios-cookiejar-support": "^6.0.2",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^4.4.1",
+    "form-data": "^4.0.0",
+    "tough-cookie": "^4.1.3"
+  }
+}
