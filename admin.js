@@ -91,6 +91,44 @@ function renderRow(doc) {
   const isOwner   = currentUser && d.usuarioId === currentUser.uid;
   const canDelete = isOwner || currentRole === 'admin';
 
+
+// ... dentro de renderRow(doc)
+const btnSend = document.createElement('button');
+btnSend.className = 'btn-primary';
+btnSend.title = 'Genera el reclamo automáticamente en el sitio oficial';
+btnSend.textContent = 'Enviar a Municipalidad';
+
+btnSend.addEventListener('click', async () => {
+  const seguro = confirm('¿Enviar este reporte a la Municipalidad?');
+  if (!seguro) return;
+
+  try {
+    // ID token para autorización (solo admin)
+    const user = firebase.auth().currentUser;
+    const idToken = user ? await user.getIdToken() : null;
+
+    const resp = await fetch(`/api/enviar-a-muni?docId=${encodeURIComponent(doc.id)}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': idToken ? `Bearer ${idToken}` : ''
+      }
+    });
+    const data = await resp.json();
+    if (data.ok && data.nroMunicipal) {
+      alert(`Enviado. N° municipal: ${data.nroMunicipal}`);
+    } else {
+      alert(`No se pudo obtener el número municipal. ${data.error || ''}`);
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Error al enviar a municipalidad');
+  }
+});
+
+tdAcc.appendChild(btnSend);
+
+
+  
   if (!canDelete) {
     btnDel.disabled = true;
     btnDel.title = 'No tenés permisos para eliminar este reporte';
