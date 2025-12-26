@@ -4,7 +4,8 @@
     "public": ".",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "functions/**"],
     "rewrites": [
-      { "source": "/api/enviar-a-muni", "function": "enviarAMuni" }
+      { "source": "/api/enviarPaso1Muni", "function": "enviarPaso1Muni" },
+      { "source": "/api/enviarAMuni",     "function": "enviarAMuni" }
     ]
   },
   "functions": {
