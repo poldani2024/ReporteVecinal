@@ -2,83 +2,36 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Reportes del Barrio</title>
 
-  <!-- Tu CSS principal -->
-  <link rel="stylesheet" href="style.css">
+  <!-- CSS propio -->
+  <link rel="stylesheet" href="style.css" />
 
   <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
   <!-- Firebase (Compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-
-  <!-- Estilos mínimos para el callout (podés moverlos a style.css) -->
-  <style>
-    /* --- Callout municipal (aviso destacado) --- */
-    .callout {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 16px;
-      align-items: start;
-      padding: 18px 20px;
-      border: 2px solid #2E7D32;         /* verde principal */
-      background: #F1F8E9;                /* verde muy claro */
-      border-radius: 14px;
-      box-shadow: 0 10px 24px rgba(46, 125, 50, 0.14);
-      margin: 16px auto 28px;
-      max-width: 1000px;
-    }
-    .callout__icon {
-      display: grid;
-      place-items: center;
-    }
-    .callout__content h2 {
-      margin: 0 0 6px 0;
-      font-size: 1.25rem;
-      color: #1B5E20;
-    }
-    .callout__content p {
-      margin: 8px 0;
-      color: #2f3b2b;
-      line-height: 1.5;
-    }
-    .callout__link {
-      color: #388E3C;
-      font-weight: 700;
-      text-decoration: underline;
-      text-underline-offset: 3px;
-    }
-    .callout__link:hover,
-    .callout__link:focus {
-      color: #2E7D32;
-      background: rgba(46, 125, 50, 0.08);
-      border-radius: 6px;
-      outline: none;
-    }
-    @media (max-width: 520px) {
-      .callout { grid-template-columns: 1fr; }
-    }
-  </style>
 </head>
 <body>
+  <header class="header">
+    <h1 class="title">📍 Reportes del Barrio</h1>
 
-  <h1>📍 Reportes del Barrio</h1>
+    <!-- LOGIN -->
+    <div id="login-area" class="login-area">
+      <button id="btnLogin">Iniciar sesión con Google</button>
+      <button id="btnLogout" class="hidden">Cerrar sesión</button>
+      <span id="userInfo"></span>
+    </div>
 
-  <!-- LOGIN -->
-  <div id="login-area">
-    <button id="btnLogin">Iniciar sesión con Google</button>
-    <button id="btnLogout" class="hidden">Cerrar sesión</button>
-    <span id="userInfo"></span>
-  </div>
-
-  <!-- ADMIN -->
-  <a id="link-admin" class="hidden" href="admin.html">Panel de Administración</a>
+    <!-- ADMIN -->
+    <a id="link-admin" class="hidden admin-link" href="admin.html">Panel de Administración</a>
+  </header>
 
   <!-- Aviso oficial de reclamos (callout) -->
   <section class="callout" role="complementary" aria-label="Aviso importante">
@@ -93,26 +46,28 @@
     <div class="callout__content">
       <h2>Importante para reportar problemas en el barrio</h2>
       <p>
-        Para que tu reclamo sea atendido por las autoridades, es fundamental realizar la denuncia en el sitio oficial de la Municipalidad de Roldán:
-        https://www.municipalidad.com/rold/reclamos
+        Para que tu reclamo sea atendido por las autoridades, es fundamental realizar la denuncia en el
+        sitio oficial de la Municipalidad de Roldán:
+        <a class="callout__link" href="https://www.municipalidad.com/rold/reclamos" target="_blank" rel="noopener noreferrer">
+          https://www.municipalidad.com/rold/reclamos
         </a>.
       </p>
       <p>
-        Una vez que ingreses el reclamo en la página de la municipalidad, anotá el número de reclamo y registralo en la app de la vecinal. De esta manera podremos reunir todos los reclamos y darles seguimiento como comunidad.
+        Una vez ingresado el reclamo, anotá el número y registralo en la app de la vecinal para que podamos
+        <strong>juntar todos los reclamos como comunidad</strong>.
       </p>
     </div>
   </section>
 
   <!-- MAPA -->
   <div id="map"></div>
-
   <button id="btn-ubicacion" class="btn-ubicacion">📍 Usar mi ubicación</button>
 
   <!-- FORMULARIO -->
-  <form id="report-form" class="hidden">
+  <form id="report-form" class="hidden form">
     <h3>Nuevo reporte</h3>
 
-    <label>Tipo:</label>
+    <label for="tipo">Tipo:</label>
     <select id="tipo">
       <option value="Falta de luz">Falta Iluminación (Alumbrado Público)</option>
       <option value="Basura">Basura</option>
@@ -122,15 +77,29 @@
       <option value="Otro">Otro</option>
     </select>
 
-    <label>Descripción:</label>
+    <label for="descripcion">Descripción:</label>
     <textarea id="descripcion"></textarea>
 
-    <label>Dirección:</label>
-    <input id="direccion" type="text">
+    <label for="direccion">Dirección:</label>
+    <input id="direccion" type="text" />
 
-    <button type="submit">Guardar reporte</button>
+    <!-- Número municipal -->
+    <label for="nroMunicipalidad">N° de reclamo de la Municipalidad de Roldán (opcional):</label>
+    <input
+      id="nroMunicipalidad"
+      type="text"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      placeholder="Ej: 123456"
+    />
+
+    <div class="form-actions">
+      <button id="btnSubmit" type="submit">Guardar reporte</button>
+      <button id="btnCancelEdit" type="button" class="hidden btn-secondary">Cancelar edición</button>
+    </div>
   </form>
 
+  <!-- Scripts propios -->
   <script src="firebase.js"></script>
   <script src="script.js"></script>
 </body>
