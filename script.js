@@ -141,6 +141,25 @@ function makeCircleMarker(lat, lng, isMine) {
 }
 
 // --------------------------------------------
+// 🆕 Utilidad: enfocar el primer campo del formulario (y hacer scroll)
+// --------------------------------------------
+function focusFirstFormField() {
+  const form = document.getElementById('report-form');
+  if (form) {
+    form.classList.remove('hidden');                       // asegurar visible
+    const firstField =
+      document.getElementById('tipo') ||                   // preferido
+      form.querySelector('input, select, textarea');       // fallback
+
+    // desplazar el formulario al inicio de la vista
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // pequeño delay por si hay re-render o scroll
+    setTimeout(() => { firstField?.focus(); }, 60);
+  }
+}
+
+// --------------------------------------------
 // SUSCRIPCIÓN A "reportes"
 // --------------------------------------------
 function subscribeReportes() {
@@ -207,6 +226,8 @@ function subscribeReportes() {
             // Otro usuario y no admin: ver en solo-lectura
             abrirEdicion(docId, r, { readOnly: true });
           }
+
+          focusFirstFormField(); // 🆕 al abrir edición, enfocar y mostrar detalle
         });
 
         markersByDoc.set(docId, marker);
@@ -238,7 +259,8 @@ map.on("click", async (e) => {
   document.getElementById("direccion").value = direccion;
 
   colocarMarkerTemp(p);
-  abrirAlta(); // modo alta
+  abrirAlta();                 // modo alta
+  focusFirstFormField();       // 🆕 enfocar primer campo
 });
 
 // --------------------------------------------
@@ -273,6 +295,7 @@ document.getElementById("btn-ubicacion").onclick = () => {
     document.getElementById("direccion").value = direccion;
 
     abrirAlta();
+    focusFirstFormField();     // 🆕 enfocar primer campo
   }, () => alert("No se pudo obtener tu ubicación."), { enableHighAccuracy: true, timeout: 10000 });
 };
 
@@ -373,6 +396,8 @@ function abrirEdicion(docId, r, opts = { readOnly: false }) {
     map.setView([r.lat, r.lng], 17);
     colocarMarkerTemp({ lat: r.lat, lng: r.lng });
   }
+
+  focusFirstFormField(); // 🆕 enfocar primer campo al abrir edición
 }
 
 // Submit (alta o edición)
@@ -477,7 +502,7 @@ if (btnCancelEdit) {
 }
 
 // --------------------------------------------
-// Utilidad: escapar HTML para popups
+// Utilidad: escapar HTML para popups (corregida)
 // --------------------------------------------
 function escapeHtml(str) {
   return String(str)
