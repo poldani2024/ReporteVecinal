@@ -105,10 +105,7 @@ function renderRow(doc) {
   });
 
   // Acciones
-  tdAcc.appendChild(btnSendStep1);
-  tdAcc.appendChild(document.createTextNode(' '));
-  tdAcc.appendChild(btnSendFull);
-  tdAcc.appendChild(document.createTextNode(' '));
+  
   tdAcc.appendChild(btnDel);
 
   tr.appendChild(tdTipo);
