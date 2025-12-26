@@ -7,12 +7,12 @@ const btnLogout  = document.getElementById("btnLogout");
 const userInfo   = document.getElementById("userInfo");
 const linkAdmin  = document.getElementById("link-admin");
 
-// Estado adicional
 let currentUser    = null;
-let editingDocId   = null;          // id del documento en edición (si corresponde)
-let selectedLatLng = null;          // lat/lng seleccionados (click mapa o GPS)
-let markerTemp     = null;          // marcador temporal para selección
-const markersByDoc = new Map();     // docId -> marker en el mapa
+let editingDocId   = null;
+let selectedLatLng = null;
+let markerTemp     = null;
+const markersByDoc = new Map();
+let unsubReportes  = null;  // 🆕 desuscripción
 
 btnLogin.onclick = () => {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -49,10 +49,14 @@ auth.onAuthStateChanged(async (user) => {
     btnLogout.classList.add("hidden");
     linkAdmin.classList.add("hidden");
   }
+
+  // 🆕 Re-suscribir a "reportes" con el usuario actualizado,
+  // así los marcadores se colorean correctamente.
+  subscribeReportes();
 });
 
 // --------------------------------------------
-// BARRIO — COORDENADAS EXACTAS (tu polígono)
+// BARRIO — COORDENADAS EXACTAS
 // --------------------------------------------
 const barrioCoords = [
   [-32.894457508492049, -60.86895402183375],   // Castelli y Diaguitas
@@ -102,7 +106,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 barrioPolygon.addTo(map);
 
-// Sombreado fuera del barrio (como antes)
+// Sombreado fuera del barrio
 const world = [
   [90, -180],
   [90, 180],
@@ -134,66 +138,76 @@ function makeCircleMarker(lat, lng, isMine) {
 }
 
 // --------------------------------------------
-// REPORTES EN TIEMPO REAL (add/modify/remove)
+// SUSCRIPCIÓN A "reportes" (re-suscribible)
 // --------------------------------------------
-db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
-  snapshot.docChanges().forEach(change => {
-    const doc = change.doc;
-    const r   = doc.data();
-    const docId = doc.id;
+function subscribeReportes() {
+  // limpiar marcadores previos
+  for (const [, mk] of markersByDoc) mk.remove();
+  markersByDoc.clear();
 
-    if (change.type === "removed") {
-      const mk = markersByDoc.get(docId);
-      if (mk) { mk.remove(); markersByDoc.delete(docId); }
-      return;
-    }
+  // desuscribir si hay previo
+  if (typeof unsubReportes === "function") {
+    unsubReportes();
+    unsubReportes = null;
+  }
 
-    // Alta o modificación: dibujar/actualizar marcador
-    const lat = r.lat, lng = r.lng;
-    if (typeof lat !== "number" || typeof lng !== "number") return;
+  unsubReportes = db.collection("reportes")
+    .orderBy("fecha", "desc")
+    .onSnapshot(snapshot => {
+      snapshot.docChanges().forEach(change => {
+        const doc   = change.doc;
+        const r     = doc.data();
+        const docId = doc.id;
 
-    const isMine = currentUser && r.usuarioId === currentUser.uid;
+        if (change.type === "removed") {
+          const mk = markersByDoc.get(docId);
+          if (mk) { mk.remove(); markersByDoc.delete(docId); }
+          return;
+        }
 
-    // remover previo si existe
-    if (markersByDoc.has(docId)) {
-      markersByDoc.get(docId).remove();
-      markersByDoc.delete(docId);
-    }
+        const lat = r.lat, lng = r.lng;
+        if (typeof lat !== "number" || typeof lng !== "number") return;
 
-    const marker = makeCircleMarker(lat, lng, isMine)
-      .addTo(map)
-      .bindPopup(`
-        <b>${escapeHtml(r.tipo || "Sin tipo")}</b><br>
-        ${escapeHtml(r.descripcion || "")}<br>
-        ${escapeHtml(r.direccion || "")}<br>
-        ${r.municipalNumber ? `<small>N° municipal: ${escapeHtml(r.municipalNumber)}</small><br>` : ""}
-        <i>${escapeHtml(r.usuarioNombre || "")}</i>
-      `);
+        const isMine = currentUser && r.usuarioId === currentUser.uid;
 
-    // Si es mío, al click abre edición y autocompleta dirección
-    if (isMine) {
-      marker.on("click", async () => {
-        abrirEdicion(docId, r);
-        selectedLatLng = { lat, lng };
-        // Autocompletar dirección con reverse (por si quiere actualizar)
-        const direccion = await obtenerDireccion(lat, lng);
-        document.getElementById("direccion").value = direccion;
-        // Marcador temporal en la ubicación del reporte (visual)
-        colocarMarkerTemp({ lat, lng });
+        // reemplazar si existía
+        if (markersByDoc.has(docId)) {
+          markersByDoc.get(docId).remove();
+          markersByDoc.delete(docId);
+        }
+
+        const marker = makeCircleMarker(lat, lng, isMine)
+          .addTo(map)
+          .bindPopup(`
+            <b>${escapeHtml(r.tipo || "Sin tipo")}</b><br>
+            ${escapeHtml(r.descripcion || "")}<br>
+            ${escapeHtml(r.direccion || "")}<br>
+            ${r.municipalNumber ? `<small>N° municipal: ${escapeHtml(r.municipalNumber)}</small><br>` : ""}
+            <i>${escapeHtml(r.usuarioNombre || "")}</i>
+          `);
+
+        // edición si es mío
+        if (isMine) {
+          marker.on("click", async () => {
+            abrirEdicion(docId, r);
+            selectedLatLng = { lat, lng };
+            const direccion = await obtenerDireccion(lat, lng);
+            document.getElementById("direccion").value = direccion;
+            colocarMarkerTemp({ lat, lng });
+          });
+        }
+
+        markersByDoc.set(docId, marker);
       });
-    }
-
-    markersByDoc.set(docId, marker);
-  });
-});
+    });
+}
 
 // --------------------------------------------
-// CLICK EN MAPA — NUEVO REPORTE (con zona + dirección)
+// CLICK EN MAPA — NUEVO REPORTE (zona + dirección)
 // --------------------------------------------
 map.on("click", async (e) => {
   const p = e.latlng;
 
-  // VALIDACIÓN: ¿está dentro del barrio?
   if (!puntoEnPoligono(p.lat, p.lng, barrioPolygon)) {
     alert("Solo podés reportar dentro del barrio.");
     return;
@@ -205,12 +219,11 @@ map.on("click", async (e) => {
   document.getElementById("direccion").value = direccion;
 
   colocarMarkerTemp(p);
-
-  abrirAlta(); // muestra formulario en modo alta
+  abrirAlta(); // modo alta
 });
 
 // --------------------------------------------
-// UBICACIÓN ACTUAL (GPS) — con zona + dirección
+// UBICACIÓN ACTUAL (GPS) — zona + dirección
 // --------------------------------------------
 document.getElementById("btn-ubicacion").onclick = () => {
   if (!navigator.geolocation) {
@@ -280,9 +293,9 @@ const campoTipo       = document.getElementById("tipo");
 const campoDesc       = document.getElementById("descripcion");
 const campoDir        = document.getElementById("direccion");
 const campoMunicipal  = document.getElementById("nroMunicipalidad");
-const btnCancelEdit   = document.getElementById("btnCancelEdit"); // opcional si existe
-const btnSubmit       = document.getElementById("btnSubmit");     // opcional si existe
-const formTitle       = document.getElementById("form-title");    // opcional si existe
+const btnCancelEdit   = document.getElementById("btnCancelEdit"); // si existe
+const btnSubmit       = document.getElementById("btnSubmit");     // si existe
+const formTitle       = document.getElementById("form-title");    // si existe
 
 function abrirAlta() {
   editingDocId = null;
@@ -298,20 +311,20 @@ function abrirEdicion(docId, r) {
   campoTipo.value      = r.tipo || "Otro";
   campoDesc.value      = r.descripcion || "";
   campoDir.value       = r.direccion || "";
-  campoMunicipal.value = r.municipalNumber || "";
+  if (campoMunicipal)  campoMunicipal.value = r.municipalNumber || "";
 
   form.classList.remove("hidden");
   if (btnSubmit)     btnSubmit.textContent = "Actualizar reporte";
   if (btnCancelEdit) btnCancelEdit.classList.remove("hidden");
   if (formTitle)     formTitle.textContent = "Editar mi reporte";
 
-  // centrar mapa en el reclamo
   if (typeof r.lat === "number" && typeof r.lng === "number") {
     map.setView([r.lat, r.lng], 17);
+    colocarMarkerTemp({ lat: r.lat, lng: r.lng });
   }
 }
 
-// Único handler de submit (decide alta o edición)
+// Submit (alta o edición)
 form.onsubmit = async (ev) => {
   ev.preventDefault();
 
@@ -330,38 +343,27 @@ form.onsubmit = async (ev) => {
     return;
   }
 
-  const latLng = selectedLatLng; // lo setea el click en mapa/GPS o al entrar a edición
+  const latLng = selectedLatLng;
   const lat = latLng?.lat;
   const lng = latLng?.lng;
 
-  // Si estamos creando, necesitamos una ubicación válida dentro de la zona
-  if (!editingDocId) {
-    if (typeof lat !== "number" || typeof lng !== "number") {
-      alert('Seleccioná ubicación (click en el mapa o "📍 Usar mi ubicación").');
-      return;
-    }
-    if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
-      alert("La ubicación está fuera de la zona permitida.");
-      return;
-    }
-  } else {
-    // Si estamos editando y el usuario eligió una nueva ubicación, también validar zona
-    if (typeof lat === "number" && typeof lng === "number") {
-      if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
-        alert("La nueva ubicación está fuera de la zona permitida.");
-        return;
-      }
-    }
-  }
-
   try {
     if (!editingDocId) {
-      // ALTA
+      // ALTA: validar zona
+      if (typeof lat !== "number" || typeof lng !== "number") {
+        alert('Seleccioná ubicación (click en el mapa o "📍 Usar mi ubicación").');
+        return;
+      }
+      if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
+        alert("La ubicación está fuera de la zona permitida.");
+        return;
+      }
+
       await db.collection("reportes").add({
         tipo,
         descripcion,
         direccion,
-        municipalNumber,                  // 🆕 número municipal opcional
+        municipalNumber,     // 🆕 número municipal opcional
         lat,
         lng,
         estado: "Nuevo",
@@ -369,20 +371,24 @@ form.onsubmit = async (ev) => {
         usuarioNombre: auth.currentUser.displayName,
         fecha: firebase.firestore.FieldValue.serverTimestamp()
       });
+
       alert("Reporte guardado");
       form.reset();
       form.classList.add("hidden");
     } else {
-      // EDICIÓN (solo del dueño; reforzar con reglas de seguridad)
+      // EDICIÓN: si se cambió ubicación, validar zona
       const updateData = {
         tipo,
         descripcion,
         direccion,
-        municipalNumber,                  // 🆕 número municipal opcional
-        // No toco estado; si querés cambiarlo, agregar aquí
+        municipalNumber      // 🆕 número municipal opcional
       };
-      // Si el usuario seleccionó nueva ubicación durante la edición, actualizamos lat/lng
+
       if (typeof lat === "number" && typeof lng === "number") {
+        if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
+          alert("La nueva ubicación está fuera de la zona permitida.");
+          return;
+        }
         updateData.lat = lat;
         updateData.lng = lng;
       }
@@ -399,7 +405,7 @@ form.onsubmit = async (ev) => {
   }
 };
 
-// Botón cancelar edición (si existe en tu HTML)
+// Cancelar edición (si existe)
 if (btnCancelEdit) {
   btnCancelEdit.onclick = () => {
     editingDocId = null;
@@ -412,7 +418,7 @@ if (btnCancelEdit) {
 }
 
 // --------------------------------------------
-// Utilidad para escapar HTML en popups
+// Utilidad: escapar HTML para popups
 // --------------------------------------------
 function escapeHtml(str) {
   return String(str)
