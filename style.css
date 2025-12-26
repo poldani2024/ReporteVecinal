@@ -151,6 +151,94 @@ button:hover {
   font-weight: 500;
 }
 
+/* --- Anti overflow global en móviles --- */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;              /* Evita scroll horizontal */
+}
+
+/* Asegurar que los contenedores nunca excedan el ancho */
+.container,
+.header,
+.card,
+.form,
+.callout,
+.table-responsive {
+  max-width: 100%;
+}
+
+/* Map y bloques con márgenes: que respeten el ancho */
+#map {
+  width: 100%;
+  margin-left: 16px;
+  margin-right: 16px;
+  box-sizing: border-box;          /* Incluye borde y padding en el cálculo */
+}
+
+/* En móviles, reducir márgenes para que no sumen >100% */
+@media (max-width: 520px) {
+  .container { padding: 12px; }
+  #map { margin: 8px 12px; }
+  .form, .card { margin: 8px 12px 16px; }
+  .callout { margin: 12px auto 20px; }
+}
+
+/* Tabla: envolver y permitir scroll horizontal, sin romper layout */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;   /* scroll suave en iOS */
+}
+
+/* Tabla: usar border-box para que los bordes no sumen ancho extra */
+.data-table,
+.data-table thead th,
+.data-table tbody td {
+  box-sizing: border-box;
+}
+
+/* Cabecera sticky: mantener ancho y evitar “estirar” */
+.data-table thead th {
+  position: sticky;
+  top: 0;
+}
+
+/* Celdas: permitir corte de palabras/URLs largas */
+.data-table thead th,
+.data-table tbody td {
+  word-wrap: break-word;
+  overflow-wrap: anywhere;  /* corta texto largo sin espacios */
+}
+
+/* Íconos, imágenes y SVG: que nunca excedan el contenedor */
+img, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Callout: asegurar ancho máx. sin sobrepasar */
+.callout {
+  width: 100%;                      /* en móviles usa 100% */
+  padding: 16px;                    /* menor padding en pantallas chicas */
+  box-sizing: border-box;
+}
+
+/* Botones: al 100% en móviles para evitar empujes laterales */
+@media (max-width: 520px) {
+  button {
+    width: 100%;
+  }
+  .form-actions {
+    flex-direction: column;
+  }
+}
+
+/* Leaflet popup: hereda fuente y evita ancho excesivo */
+.leaflet-popup-content {
+  max-width: 80vw;                  /* popup no excede viewport */
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
 /* ---------------------------------------------------
    Formulario
 --------------------------------------------------- */
