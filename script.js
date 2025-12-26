@@ -19,10 +19,10 @@ const COLOR_OTRO_FILL  = '#64B5F6';  // Azul fill
 // Si queda vacío, se permite todo y aparece un aviso informativo.
 const ALLOWED_ZONE_POLYGON = [
   // EJEMPLO (NO ES TU POLÍGONO REAL): cuatro puntos formando un rectángulo de demo
-  // [-32.94, -60.98],
-  // [-32.94, -60.84],
-  // [-32.84, -60.84],
-  // [-32.84, -60.98],
+  [-32.894457508492049, -60.86895402183375],   // Castelli y Diaguitas
+  [-32.895413196611888, -60.86354341082229],  // Castelli y San Sebastián
+  [-32.906799262900090, -60.86634683607743],  // San Sebastián y Padre Oldani
+  [-32.905812966717276, -60.871972911350176]  // Padre Oldani y Diaguitas
 ];
 
 // Dibuja el polígono en el mapa (si está definido)
