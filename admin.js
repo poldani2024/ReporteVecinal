@@ -192,5 +192,3 @@ function renderRow(doc) {
 
   return tr;
 }
-
-tdAcc.appendChild(btnSendStep1);
