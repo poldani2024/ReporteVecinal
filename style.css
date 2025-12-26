@@ -184,3 +184,36 @@ button:hover {
 /* ---------------------------------------------------
    Tarjetas y tabla en admin
 --------------------------------------------------- */
+
+/* Tabla con líneas más definidas */
+.data-table {
+  width: 100%;
+  border-collapse: collapse; /* Cambiamos a collapse para bordes continuos */
+  background: #fff;
+  font-size: 14px;
+  border: 1px solid #ccc; /* borde externo */
+}
+
+.data-table thead th {
+  background: #f7f9fb;
+  color: #334;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #ccc; /* borde en cabecera */
+}
+
+.data-table tbody td {
+  padding: 10px 12px;
+  border: 1px solid #ddd; /* bordes internos */
+  color: #222;
+  vertical-align: top;
+}
+
+.table--striped tbody tr:nth-child(odd) {
+  background: #fcfcfc;
+}
+
+.table--hover tbody tr:hover {
+  background: #eef6ff;
+}
