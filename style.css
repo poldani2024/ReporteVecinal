@@ -39,6 +39,20 @@ html, body {
   padding: 16px;
 }
 
+/* Botón de peligro (eliminar) */
+.btn-danger {
+  background: #D32F2F;
+  color: #fff;
+  border: 1px solid #B71C1C;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: #B71C1C;
+}
+
 /* ---------------------------------------------------
    Login/Admin
 --------------------------------------------------- */
