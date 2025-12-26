@@ -1,282 +1,112 @@
 
-/* ---------------------------------------------------
-   Fuente global: Montserrat (fallback Verdana)
---------------------------------------------------- */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap');
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <title>📍 Reportes del Barrio</title>
 
-html, body {
-  font-family: 'Montserrat', Verdana, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-  color: #222;
-  margin: 0;
-  padding: 0;
-  background: #fafafa;
+  <link rel="stylesheet" href="style.css" />
 
-  /* Evitar scroll horizontal */
-  max-width: 100%;
-  overflow-x: hidden;
-}
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-/* ---------------------------------------------------
-   Encabezado y layout
---------------------------------------------------- */
-.header {
-  padding: 16px;
-  border-bottom: 1px solid #e7e7e7;
-  background: #fff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-sizing: border-box;
-}
+  <!-- Firebase (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-.title {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #1B5E20;
-}
+  <script src="firebase.js"></script>
+</head>
+<body>
+  <header class="header">
+    <h1 class="title">📍 Reportes del Barrio</h1>
 
-.container {
-  width: min(100%, 1024px);
-  margin: 0 auto;
-  padding: 16px;
-  box-sizing: border-box;
-}
+    <!-- LOGIN -->
+    <div id="login-area" class="login-area">
+      <button id="btnLogin">Iniciar sesión con Google</button>
+      <button id="btnLogout" class="hidden">Cerrar sesión</button>
+      <span id="userInfo"></span>
+    </div>
 
-/* ---------------------------------------------------
-   Botón de peligro (eliminar)
---------------------------------------------------- */
-.btn-danger {
-  background: #D32F2F;
-  color: #fff;
-  border: 1px solid #B71C1C;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.btn-danger:hover { background: #B71C1C; }
+    <!-- ADMIN -->
+    <a id="link-admin" class="btn-link hidden" href="admin.html">Panel de Administración</a>
+  </header>
 
-/* ---------------------------------------------------
-   Login/Admin
---------------------------------------------------- */
-.login-area {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.muted { color: #666; font-size: 0.95rem; }
+  <!-- Aviso oficial de reclamos (callout) -->
+  <section class="callout" role="complementary" aria-label="Aviso importante">
+    <div class="callout__icon" aria-hidden="true">
+      <!-- Ícono positivo (check) en SVG -->
+      <svg viewBox="0 0 24 24" width="32" height="32" role="img" aria-label="Importante">
+        <circle cx="12" cy="12" r="11" fill="#FFE0B2" stroke="#C62828" stroke-width="2"></circle>
+        <path d="M7 12.5l3 3 7-8" fill="none" stroke="#C62828" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    </div>
 
-/* ---------------------------------------------------
-   Botones
---------------------------------------------------- */
-button {
-  font-family: inherit;
-  font-weight: 500;
-  letter-spacing: 0.2px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid #cfd8dc;
-  background: #fff;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-button:hover { background: #f0f0f0; }
+    <div class="callout__content">
+      <h2>Importante para reportar problemas en el barrio</h2>
+      <p>
+        Para que tu reclamo sea atendido por las autoridades, es fundamental realizar la denuncia en el
+        sitio oficial de la Municipalidad de Roldán:
+        <a class="callout__link" href="https://www.municipalidad.com/rold/reclamos" target="_blank" rel="noopener">https://www.municipalidad.com/rold/reclamos</a>.
+      </p>
+      <p>
+        Una vez ingresado el reclamo, anotá el número y registralo en la app de la vecinal para que podamos
+        <strong>juntar todos los reclamos como comunidad</strong>.
+      </p>
+    </div>
+  </section>
 
-.btn-primary {
-  background: #1976D2;
-  color: #fff;
-  border: 1px solid #1565C0;
-}
-.btn-primary:hover { background: #1565C0; }
+  <!-- Mensaje de zona -->
+  <div id="zone-warning" class="zone-warning hidden" role="alert">
+    ⚠️ La ubicación seleccionada está fuera de la zona permitida por la vecinal.
+    Por favor, elegí un punto dentro del área habilitada.
+  </div>
 
-.btn-secondary { background: #e8e8e8; }
-.btn-link {
-  background: transparent;
-  border: none;
-  color: #1976D2;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-}
+  <!-- MAPA -->
+  <div id="map"></div>
+  <button id="btn-ubicacion" class="btn-ubicacion">📍 Usar mi ubicación</button>
 
-/* Ocultos */
-.hidden { display: none !important; }
+  <!-- FORMULARIO -->
+  <form id="report-form" class="hidden form">
+    <h3 id="form-title">Nuevo reporte</h3>
 
-/* ---------------------------------------------------
-   Mapa
---------------------------------------------------- */
-#map {
-  height: 60vh;
-  min-height: 380px;
-  width: 100%;
-  border: 1px solid #e4e4e4;
-  border-radius: 12px;
-  margin: 12px auto;
-  box-sizing: border-box;
-}
-.btn-ubicacion { margin: 0 16px 12px; }
+    <label for="tipo">Tipo:</label>
+    <select id="tipo">
+      <option value="Falta de luz">Falta Iluminación (Alumbrado Público)</option>
+      <option value="Basura">Basura</option>
+      <option value="Inseguridad">Inseguridad</option>
+      <option value="Estado de la Calle">Estado de la Calle</option>
+      <option value="Terreno Baldío sin limpiar">Terreno Baldío sin limpiar</option>
+      <option value="Otro">Otro</option>
+    </select>
 
-/* Leaflet popups y tooltips */
-.leaflet-container,
-.leaflet-popup-content,
-.leaflet-tooltip {
-  font-family: inherit;
-  font-size: 14px;
-}
-.leaflet-popup-content {
-  max-width: 80vw;
-  word-wrap: break-word;
-  overflow-wrap: anywhere;
-}
+    <label for="descripcion">Descripción:</label>
+    <textarea id="descripcion" placeholder="Detallá qué ocurre…"></textarea>
 
-/* ---------------------------------------------------
-   Mensaje zona
---------------------------------------------------- */
-.zone-warning {
-  margin: 0 auto;
-  padding: 12px 14px;
-  border: 2px solid #B71C1C;
-  background: #FFEBEE;
-  color: #B71C1C;
-  border-radius: 10px;
-  font-weight: 500;
-  box-sizing: border-box;
-  max-width: calc(100% - 24px);
-}
+    <label for="direccion">Dirección:</label>
+    <input id="direccion" type="text" placeholder="Se autocompleta al elegir ubicación" />
 
-/* ---------------------------------------------------
-   Formulario
---------------------------------------------------- */
-.form {
-  border: 1px solid #e4e4e4;
-  border-radius: 12px;
-  padding: 16px;
-  margin: 0 auto 24px;
-  background: #fff;
-  box-sizing: border-box;
-  max-width: calc(100% - 24px);
-}
-.form h3 { margin-top: 0; font-weight: 700; }
-.form label { display: block; margin-top: 10px; font-weight: 500; }
-.form textarea,
-.form input,
-.form select {
-  width: 100%;
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 1px solid #cfd8dc;
-  border-radius: 10px;
-  font-size: 1rem;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-.form textarea { min-height: 80px; }
-.form-actions { display: flex; gap: 10px; margin-top: 12px; }
+    <!-- Número municipal -->
+    <label for="nroMunicipalidad">N° de reclamo de la Municipalidad de Roldán (opcional):</label>
+    <input
+      id="nroMunicipalidad"
+      type="text"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      placeholder="Ej: 123456"
+    />
 
-/* ---------------------------------------------------
-   Tabla (admin) — sin limitaciones en móvil
---------------------------------------------------- */
-.table-responsive {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  box-sizing: border-box;
-  max-width: 100%;
-}
-.data-table {
-  width: max-content; /* permite ancho natural */
-  min-width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  font-size: 14px;
-  border: 1px solid #ccc;
-}
-.data-table thead th {
-  position: sticky;
-  top: 0;
-  background: #f7f9fb;
-  color: #334;
-  font-weight: 700;
-  text-align: left;
-  padding: 10px 12px;
-  border: 1px solid #ccc;
-  background-clip: padding-box;
-  white-space: nowrap; /* evita cortes */
-}
-.data-table tbody td {
-  padding: 10px 12px;
-  border: 1px solid #ddd;
-  color: #222;
-  vertical-align: top;
-  white-space: nowrap;
-}
-.table--striped tbody tr:nth-child(odd) { background: #fcfcfc; }
-.table--hover tbody tr:hover { background: #eef6ff; }
+    <div class="form-actions">
+      <button id="btnSubmit" type="submit">Guardar reporte</button>
+      <button id="btnCancelEdit" type="button" class="hidden btn-secondary">Cancelar edición</button>
+    </div>
+  </form>
 
-/* ---------------------------------------------------
-   Callout municipal (aviso destacado)
---------------------------------------------------- */
-.callout {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 16px;
-  align-items: start;
-  border: 2px solid #C62828;
-  background: #FFE0B2;
-  border-radius: 16px;
-  box-shadow: 0 8px 20px rgba(198, 40, 40, 0.12);
-  width: 100%;
-  padding: 16px;
-  margin: 12px auto 20px;
-  box-sizing: border-box;
-  max-width: calc(100% - 24px);
-}
-@media (min-width: 680px) {
-  .callout {
-    margin: 16px auto 28px;
-    max-width: 1000px;
-    width: calc(100% - 32px);
-  }
-}
-.callout__icon { display: grid; place-items: center; }
-.callout__content h2 {
-  margin: 0 0 8px 0;
-  font-size: 1.25rem;
-  color: #7F0000;
-}
-.callout__content p {
-  margin: 8px 0;
-  color: #4A2A2A;
-  line-height: 1.55;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-.callout__link {
-  color: #B71C1C;
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.callout__link:hover,
-.callout__link:focus {
-  color: #C62828;
-  background: rgba(198, 40, 40, 0.10);
-  border-radius: 6px;
-  outline: none;
-}
-@media (max-width: 520px) {
-  .callout { grid-template-columns: 1fr; }
-}
-
-/* ---------------------------------------------------
-   Responsivo
---------------------------------------------------- */
-@media (max-width: 520px) {
-  .container { padding: 12px; }
-  #map { margin: 8px auto; }
-  .form { margin: 8px auto 16px; }
-  .callout { margin: 8px auto 16px; }
-  button { width: 100%; }
-  .form-actions { flex-direction: column; gap: 8px; }
-}
+  <script src="script.js"></script>
+</body>
+</html>
