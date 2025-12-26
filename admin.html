@@ -1,8 +1,9 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Panel de Administración</title>
 
   <link rel="stylesheet" href="style.css" />
@@ -14,28 +15,48 @@
 
   <script src="firebase.js"></script>
 </head>
-
 <body>
-  <h1>🔧 Panel de Administración</h1>
+  <header class="header">
+    <h1 class="title">🔧 Panel de Administración</h1>
+    <div class="login-area" id="admin-auth">
+      <button onclick="window.location.href='index.html'">⬅ Volver al mapa</button>
+      <span id="adminUserInfo" class="muted"></span>
+    </div>
+  </header>
 
-  <button onclick="window.location.href='index.html'">⬅ Volver al mapa</button>
-  <p id="adminUserInfo"></p>
+  <main class="container">
+    <section class="card">
+      <div class="table-toolbar">
+        <h2>Reportes recibidos</h2>
+        <div class="toolbar-actions">
+          <button id="btnExportCsv" class="btn-primary">⬇ Exportar a Excel (.csv)</button>
+        </div>
+      </div>
 
-  <h2>Reportes recibidos</h2>
-
-  <table id="tabla-reportes">
-    <thead>
-      <tr>
-        <th>Tipo</th>
-        <th>Dirección</th>
-        <th>Descripción</th>
-        <th>Vecino</th>
-        <th>Estado</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody id="tbody-reportes"></tbody>
-  </table>
+      <div class="table-responsive">
+        <table id="tabla-reportes" class="data-table table--striped table--hover">
+          <thead>
+            <tr>
+              <th>Tipo</th>
+              <th>Dirección</th>
+              <th>Descripción</th>
+              <th>Vecino</th>
+              <th>Estado</th>
+              <th>N° municipal</th>
+              <th>Fecha registro</th>
+              <th>Hora registro</th>
+              <th>Fecha modificación</th>
+              <th>Hora modificación</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-reportes">
+            <tr><td colspan="11">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
 
   <script src="admin.js"></script>
 </body>
