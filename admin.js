@@ -1,500 +1,249 @@
 
-// --------------------------------------------
-// LOGIN GOOGLE
-// --------------------------------------------
-const btnLogin   = document.getElementById("btnLogin");
-const btnLogout  = document.getElementById("btnLogout");
-const userInfo   = document.getElementById("userInfo");
-const linkAdmin  = document.getElementById("link-admin");
+/**
+ * admin.js — Panel de administración de Reportes
+ * - Autenticación con Google
+ * - Lectura de rol desde /users/{uid}
+ * - Suscripción en tiempo real a /reportes (admin: todos; vecino: propios)
+ * - Eliminar reportes (dueño o admin; requiere reglas de Firestore acordes)
+ * - Exportar a Excel (CSV)
+ */
 
-let currentUser      = null;
-let currentUserRole  = "vecino";
-let editingDocId     = null;
-let selectedLatLng   = null;
-let markerTemp       = null;
-const markersByDoc   = new Map();
-let unsubReportes    = null;
-let formReadOnly     = false;
-
-// Detección básica iOS/Safari para usar redirect (más estable que popup)
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-btnLogin.onclick = async () => {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  try {
-    if (isIOS && isSafari) {
-      await auth.signInWithRedirect(provider);
-    } else {
-      await auth.signInWithPopup(provider);
-    }
-  } catch (err) {
-    console.error('[auth] signIn error', err);
-    alert('No se pudo iniciar sesión. Probá nuevamente.');
-  }
-};
-
-btnLogout.onclick = () => auth.signOut();
-
-auth.onAuthStateChanged(async (user) => {
-  currentUser = user || null;
-  currentUserRole = "vecino";
-
-  if (user) {
-    userInfo.textContent = `Conectado como: ${user.displayName || user.email}`;
-    btnLogin.classList.add("hidden");
-    btnLogout.classList.remove("hidden");
-
-    const userRef = db.collection("users").doc(user.uid);
-    const snap = await userRef.get();
-
-    if (!snap.exists) {
-      await userRef.set({
-        nombre: user.displayName,
-        email: user.email,
-        rol: "vecino",
-        creado: new Date()
-      });
-    }
-
-    const data = (await userRef.get()).data();
-    currentUserRole = data.rol || "vecino";
-    linkAdmin.classList.toggle("hidden", currentUserRole !== "admin");
-  } else {
-    userInfo.textContent = "";
-    btnLogin.classList.remove("hidden");
-    btnLogout.classList.add("hidden");
-    linkAdmin.classList.add("hidden");
-  }
-
-  // Re-suscribir a "reportes" con el usuario/rol actual
-  subscribeReportes();
-});
-
-// --------------------------------------------
-// BARRIO — COORDENADAS EXACTAS
-// --------------------------------------------
-const barrioCoords = [
-  [-32.894457508492049, -60.86895402183375],   // Castelli y Diaguitas
-  [-32.895413196611888, -60.86354341082229],   // Castelli y San Sebastián
-  [-32.906799262900090, -60.86634683607743],   // San Sebastián y Padre Oldani
-  [-32.905812966717276, -60.871972911350176]   // Padre Oldani y Diaguitas
-];
-
-// --------------------------------------------
-// FUNCIÓN PUNTO-EN-POLÍGONO (Ray Casting)
-// --------------------------------------------
-function puntoEnPoligono(lat, lng, poligono) {
-  let dentro = false;
-  const pts = poligono.getLatLngs()[0];
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    const xi = pts[i].lat, yi = pts[i].lng;
-    const xj = pts[j].lat, yj = pts[j].lng;
-    const intersecta = ((yi > lng) !== (yj > lng)) &&
-      (lat < (xj - xi) * (lng - yi) / (yj - yi + 1e-12) + xi);
-    if (intersecta) dentro = !dentro;
-  }
-  return dentro;
+// Si firebase.js no expuso auth/db por algún motivo
+try {
+  window.auth = window.auth || firebase.auth();
+  window.db   = window.db   || firebase.firestore();
+  console.log('🔥 Firebase cargado correctamente');
+} catch (e) {
+  console.error('No se encontró Firebase. Asegurate de incluir firebase.js antes de admin.js');
 }
 
-// --------------------------------------------
-// MAPA CONFIGURADO
-// --------------------------------------------
-const barrioPolygon = L.polygon(barrioCoords, {
-  color: "green",
-  weight: 3,
-  fillColor: "#00FF00",
-  fillOpacity: 0.15
-});
+// Referencias a elementos del DOM
+const tbody         = document.getElementById('tbody-reportes');
+const adminUserEl   = document.getElementById('adminUserInfo');
+const btnExportCsv  = document.getElementById('btnExportCsv');
 
-const map = L.map("map", {
-  maxBounds: barrioPolygon.getBounds().pad(0.3),
-  maxBoundsViscosity: 1.0
-}).setView(barrioPolygon.getBounds().getCenter(), 16);
+// Estado
+let unsub = null;
+let currentUser = null;
+let currentRole = 'vecino';
+let cacheRowsForExport = []; // datos para exportación CSV
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: "© OpenStreetMap contributors"
-}).addTo(map);
+const SHOW_ONLY_OWN_FOR_VECINO = true; // vecinos ven sólo sus propios reportes
 
-barrioPolygon.addTo(map);
+// Utilidades
+function formatDate(d) { return d.toLocaleDateString('es-AR'); }
+function formatTime(d) { return d.toLocaleTimeString('es-AR', { hour12: false }); }
+function formatFileTimestamp(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+}
+function csvEscape(val) {
+  if (val == null) return '';
+  const s = String(val);
+  if (/[",\r\n]/.test(s)) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
 
-// Sombreado fuera del barrio
-const world = [
-  [90, -180],
-  [90, 180],
-  [-90, 180],
-  [-90, -180]
-];
-L.polygon([world, barrioCoords], {
-  color: "black",
-  fillOpacity: 0.5,
-  stroke: false
-}).addTo(map);
+// Render de fila seguro (textContent)
+function renderRow(doc) {
+  const d = doc.data();
 
-// --------------------------------------------
-// COLORES DE MARCADORES
-// --------------------------------------------
-const COLOR_MIO_BORDE  = "#7B1FA2";
-const COLOR_MIO_FILL   = "#BA68C8";
-const COLOR_OTRO_BORDE = "#1976D2";
-const COLOR_OTRO_FILL  = "#64B5F6";
+  const fechaRegDate = d.fecha?.toDate ? d.fecha.toDate() : null;
+  const fechaModDate = d.updatedAt?.toDate ? d.updatedAt.toDate() : null;
 
-function makeCircleMarker(lat, lng, isMine) {
-  return L.circleMarker([lat, lng], {
-    radius: 10,
-    color: isMine ? COLOR_MIO_BORDE : COLOR_OTRO_BORDE,
-    weight: 2,
-    fillColor: isMine ? COLOR_MIO_FILL : COLOR_OTRO_FILL,
-    fillOpacity: 0.95
+  const fechaReg = fechaRegDate ? formatDate(fechaRegDate) : '–';
+  const horaReg  = fechaRegDate ? formatTime(fechaRegDate) : '–';
+  const fechaMod = fechaModDate ? formatDate(fechaModDate) : '–';
+  const horaMod  = fechaModDate ? formatTime(fechaModDate) : '–';
+
+  const tr = document.createElement('tr');
+
+  const tdTipo      = document.createElement('td');
+  const tdDir       = document.createElement('td');
+  const tdDesc      = document.createElement('td');
+  const tdVecino    = document.createElement('td');
+  const tdEstado    = document.createElement('td');
+  const tdMunicipal = document.createElement('td');
+  const tdFReg      = document.createElement('td');
+  const tdHReg      = document.createElement('td');
+  const tdFMod      = document.createElement('td');
+  const tdHMod      = document.createElement('td');
+  const tdAcc       = document.createElement('td');
+
+  tdTipo.textContent      = d.tipo || '';
+  tdDir.textContent       = d.direccion || '';
+  tdDesc.textContent      = d.descripcion || '';
+  tdVecino.textContent    = d.usuarioNombre || '';
+  tdEstado.textContent    = d.estado || 'Nuevo';
+  tdMunicipal.textContent = d.municipalNumber || '';
+  tdFReg.textContent      = fechaReg;
+  tdHReg.textContent      = horaReg;
+  tdFMod.textContent      = fechaMod;
+  tdHMod.textContent      = horaMod;
+
+  const btnDel = document.createElement('button');
+  btnDel.className = 'btn-danger';
+  btnDel.title = 'Eliminar reporte';
+  btnDel.textContent = 'Eliminar';
+
+  const isOwner   = currentUser && d.usuarioId === currentUser.uid;
+  const canDelete = isOwner || currentRole === 'admin';
+
+  if (!canDelete) {
+    btnDel.disabled = true;
+    btnDel.title = 'No tenés permisos para eliminar este reporte';
+  }
+
+  btnDel.addEventListener('click', async () => {
+    if (!canDelete) {
+      alert('No tenés permisos para eliminar este reporte. Debés ser el dueño o administrador.');
+      return;
+    }
+    const confirmado = confirm('¿Seguro que querés eliminar este reporte?\nEsta acción no se puede deshacer.');
+    if (!confirmado) return;
+
+    try {
+      await db.collection('reportes').doc(doc.id).delete();
+      // onSnapshot lo removerá de la tabla automáticamente
+    } catch (err) {
+      console.error(err);
+      alert(err.code === 'permission-denied'
+        ? 'Permiso denegado. Reglas de Firestore: sólo dueño o admin pueden borrar.'
+        : 'Ocurrió un error al eliminar el reporte.'
+      );
+    }
   });
+
+  tdAcc.appendChild(btnDel);
+
+  tr.appendChild(tdTipo);
+  tr.appendChild(tdDir);
+  tr.appendChild(tdDesc);
+  tr.appendChild(tdVecino);
+  tr.appendChild(tdEstado);
+  tr.appendChild(tdMunicipal);
+  tr.appendChild(tdFReg);
+  tr.appendChild(tdHReg);
+  tr.appendChild(tdFMod);
+  tr.appendChild(tdHMod);
+  tr.appendChild(tdAcc);
+
+  cacheRowsForExport.push({
+    tipo: d.tipo || '',
+    direccion: d.direccion || '',
+    descripcion: d.descripcion || '',
+    vecino: d.usuarioNombre || '',
+    estado: d.estado || 'Nuevo',
+    nMunicipal: d.municipalNumber || '',
+    fechaRegistro: fechaReg,
+    horaRegistro: horaReg,
+    fechaModificacion: fechaMod,
+    horaModificacion: horaMod
+  });
+
+  return tr;
 }
 
-// --------------------------------------------
-// Utilidad: enfocar el primer campo del formulario (y hacer scroll)
-// --------------------------------------------
-function focusFirstFormField() {
-  const form = document.getElementById('report-form');
-  if (form) {
-    form.classList.remove('hidden');
-    const firstField =
-      document.getElementById('tipo') ||
-      form.querySelector('input, select, textarea');
-    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => { firstField?.focus(); }, 60);
+// Suscripción en tiempo real
+function subscribeReportes({ onlyMine = false, uid = null }) {
+  if (typeof unsub === 'function') {
+    unsub();
+    unsub = null;
   }
-}
+  tbody.innerHTML = '<tr><td colspan="11">Cargando…</td></tr>';
+  cacheRowsForExport = [];
 
-// --------------------------------------------
-// SUSCRIPCIÓN A "reportes"
-// --------------------------------------------
-function subscribeReportes() {
-  for (const [, mk] of markersByDoc) mk.remove();
-  markersByDoc.clear();
+  let query = db.collection('reportes').orderBy('fecha', 'desc');
 
-  if (typeof unsubReportes === "function") {
-    unsubReportes();
-    unsubReportes = null;
+  if (onlyMine && uid) {
+    query = db.collection('reportes')
+      .where('usuarioId', '==', uid)
+      .orderBy('fecha', 'desc');
   }
 
-  unsubReportes = db.collection("reportes")
-    .orderBy("fecha", "desc")
-    .onSnapshot(snapshot => {
-      snapshot.docChanges().forEach(change => {
-        const doc   = change.doc;
-        const r     = doc.data();
-        const docId = doc.id;
+  unsub = query.onSnapshot((snap) => {
+    tbody.innerHTML = '';
+    cacheRowsForExport = [];
 
-        if (change.type === "removed") {
-          const mk = markersByDoc.get(docId);
-          if (mk) { mk.remove(); markersByDoc.delete(docId); }
-          return;
-        }
-
-        const lat = r.lat, lng = r.lng;
-        if (typeof lat !== "number" || typeof lng !== "number") return;
-
-        const isMine = currentUser && r.usuarioId === currentUser.uid;
-
-        if (markersByDoc.has(docId)) {
-          markersByDoc.get(docId).remove();
-          markersByDoc.delete(docId);
-        }
-
-        const marker = makeCircleMarker(lat, lng, isMine)
-          .addTo(map)
-          .bindPopup(`
-            <b>${escapeHtml(r.tipo || "Sin tipo")}</b><br>
-            ${escapeHtml(r.descripcion || "")}<br>
-            ${escapeHtml(r.direccion || "")}<br>
-            ${r.municipalNumber ? `<small>N° municipal: ${escapeHtml(r.municipalNumber)}</small><br>` : ""}
-            <i>${escapeHtml(r.usuarioNombre || "")}</i>
-          `);
-
-        marker.on("click", async () => {
-          const direccion = await obtenerDireccion(lat, lng);
-          document.getElementById("direccion").value = direccion;
-          selectedLatLng = { lat, lng };
-          colocarMarkerTemp(selectedLatLng);
-
-          if (isMine) {
-            abrirEdicion(docId, r, { readOnly: false });
-          } else if (currentUserRole === "admin") {
-            abrirEdicion(docId, r, { readOnly: false });
-          } else {
-            abrirEdicion(docId, r, { readOnly: true });
-          }
-          focusFirstFormField();
-        });
-
-        markersByDoc.set(docId, marker);
-      });
-    });
-}
-
-// --------------------------------------------
-// CLICK EN MAPA — NUEVO REPORTE
-// --------------------------------------------
-map.on("click", async (e) => {
-  if (formReadOnly && editingDocId) {
-    alert("Estás viendo un reporte en modo solo-lectura. No podés cambiar su ubicación.");
-    return;
-  }
-
-  const p = e.latlng;
-
-  if (!puntoEnPoligono(p.lat, p.lng, barrioPolygon)) {
-    alert("Solo podés reportar dentro del barrio.");
-    return;
-  }
-
-  selectedLatLng = p;
-
-  const direccion = await obtenerDireccion(p.lat, p.lng);
-  document.getElementById("direccion").value = direccion;
-
-  colocarMarkerTemp(p);
-  abrirAlta();
-  focusFirstFormField();
-});
-
-// --------------------------------------------
-// UBICACIÓN ACTUAL (GPS) — zona + dirección
-// --------------------------------------------
-document.getElementById("btn-ubicacion").onclick = () => {
-  if (formReadOnly && editingDocId) {
-    alert("Estás viendo un reporte en modo solo-lectura. No podés cambiar su ubicación.");
-    return;
-  }
-
-  if (!navigator.geolocation) {
-    alert("GPS no soportado.");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-
-    if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
-      alert("Tu ubicación está fuera del barrio.");
+    if (snap.empty) {
+      tbody.innerHTML = '<tr><td colspan="11">Sin reportes para mostrar.</td></tr>';
       return;
     }
 
-    selectedLatLng = { lat, lng };
+    snap.forEach((doc) => {
+      tbody.appendChild(renderRow(doc));
+    });
+  }, (err) => {
+    console.error(err);
+    tbody.innerHTML = `<tr><td colspan="11">Error al cargar: ${err.message || err.code || 'desconocido'}</td></tr>`;
+    if (err.code === 'permission-denied') {
+      tbody.innerHTML = `<tr><td colspan="11">Permiso denegado. Verificá reglas de Firestore y autenticación.</td></tr>`;
+    }
+  });
+}
 
-    map.setView([lat, lng], 17);
-    colocarMarkerTemp(selectedLatLng);
+// Autenticación + rol
+firebase.auth().onAuthStateChanged(async (user) => {
+  currentUser = user || null;
 
-    const direccion = await obtenerDireccion(lat, lng);
-    document.getElementById("direccion").value = direccion;
+  if (!user) {
+    adminUserEl.textContent = 'No autenticado. Iniciá sesión desde el mapa y luego ingresá al panel.';
+    tbody.innerHTML = '<tr><td colspan="11">No autenticado</td></tr>';
+    return;
+  }
 
-    abrirAlta();
-    focusFirstFormField();
-  }, () => alert("No se pudo obtener tu ubicación."), { enableHighAccuracy: true, timeout: 10000 });
+  adminUserEl.textContent = `Conectado como: ${user.displayName || user.email}`;
+
+  try {
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    currentRole = userDoc.exists ? (userDoc.data().rol || 'vecino') : 'vecino';
+
+    if (currentRole === 'admin') {
+      subscribeReportes({ onlyMine: false, uid: user.uid });
+    } else {
+      subscribeReportes({ onlyMine: SHOW_ONLY_OWN_FOR_VECINO, uid: user.uid });
+    }
+  } catch (e) {
+    console.error('Error leyendo rol:', e);
+    adminUserEl.textContent += ' (Error leyendo rol)';
+    subscribeReportes({ onlyMine: true, uid: user.uid });
+  }
 });
 
-// --------------------------------------------
-// REVERSE GEOCODING (Nominatim)
-// --------------------------------------------
-async function obtenerDireccion(lat, lng) {
-  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=es`;
-  try {
-    const resp = await fetch(url);
-    const data = await resp.json();
-
-    if (data.address) {
-      const calle  = data.address.road || "";
-      const altura = data.address.house_number || "";
-      const barrio = data.address.suburb || "";
-      const ciudad = data.address.city || data.address.town || data.address.village || "";
-      const partes = [calle && `${calle} ${altura}`.trim(), barrio, ciudad].filter(Boolean);
-      return partes.length ? partes.join(", ") : (data.display_name || "Dirección no disponible");
-    }
-    return data.display_name || "Dirección no disponible";
-  } catch {
-    return "Dirección no disponible";
-  }
-}
-
-// --------------------------------------------
-// MARCADOR TEMPORAL (selección)
-// --------------------------------------------
-function colocarMarkerTemp({ lat, lng }) {
-  if (markerTemp) map.removeLayer(markerTemp);
-  markerTemp = L.circleMarker([lat, lng], {
-    radius: 10, color: "#555", weight: 2, fillColor: "#999", fillOpacity: 0.5
-  }).addTo(map).bindPopup("Ubicación seleccionada para el reclamo").openPopup();
-}
-
-// --------------------------------------------
-// FORMULARIO (alta y edición)
-// --------------------------------------------
-const form            = document.getElementById("report-form");
-const campoTipo       = document.getElementById("tipo");
-const campoDesc       = document.getElementById("descripcion");
-const campoDir        = document.getElementById("direccion");
-const campoMunicipal  = document.getElementById("nroMunicipalidad");
-const btnCancelEdit   = document.getElementById("btnCancelEdit");
-const btnSubmit       = document.getElementById("btnSubmit");
-const formTitle       = document.getElementById("form-title");
-
-function setFormReadonly(ro) {
-  formReadOnly = !!ro;
-
-  campoTipo.disabled      = formReadOnly;
-  campoDesc.disabled      = formReadOnly;
-  campoDir.disabled       = formReadOnly;
-  if (campoMunicipal) campoMunicipal.disabled = formReadOnly;
-
-  if (btnSubmit) {
-    btnSubmit.disabled  = formReadOnly;
-    btnSubmit.textContent = formReadOnly ? "Guardar deshabilitado" : "Guardar reporte";
-  }
-
-  if (btnCancelEdit) {
-    btnCancelEdit.classList.toggle("hidden", !editingDocId);
-  }
-
-  if (formTitle) {
-    if (!editingDocId) {
-      formTitle.textContent = "Nuevo reporte";
-    } else {
-      formTitle.textContent = formReadOnly ? "Ver reporte (solo lectura)" : "Editar mi reporte";
-    }
-  }
-}
-
-function abrirAlta() {
-  editingDocId = null;
-  form.classList.remove("hidden");
-  setFormReadonly(false);
-}
-
-function abrirEdicion(docId, r, opts = { readOnly: false }) {
-  editingDocId = docId;
-
-  campoTipo.value      = r.tipo || "Otro";
-  campoDesc.value      = r.descripcion || "";
-  campoDir.value       = r.direccion || "";
-  if (campoMunicipal)  campoMunicipal.value = r.municipalNumber || "";
-
-  form.classList.remove("hidden");
-  setFormReadonly(!!opts.readOnly);
-
-  if (typeof r.lat === "number" && typeof r.lng === "number") {
-    map.setView([r.lat, r.lng], 17);
-    colocarMarkerTemp({ lat: r.lat, lng: r.lng });
-  }
-  focusFirstFormField();
-}
-
-// Submit (alta o edición)
-form.onsubmit = async (ev) => {
-  ev.preventDefault();
-
-  if (!auth.currentUser) {
-    alert("Debés iniciar sesión con Google.");
+// Exportar a CSV
+btnExportCsv.addEventListener('click', () => {
+  if (!cacheRowsForExport.length) {
+    alert('No hay datos para exportar.');
     return;
   }
 
-  if (formReadOnly) {
-    alert("No tenés permisos para editar este reporte.");
-    return;
-  }
+  const headers = [
+    'Tipo','Dirección','Descripción','Vecino','Estado',
+    'N° municipal','Fecha registro','Hora registro',
+    'Fecha modificación','Hora modificación'
+  ];
+  const lines = [];
+  lines.push(headers.join(','));
 
-  const tipo            = campoTipo.value;
-  const descripcion     = campoDesc.value.trim();
-  const direccion       = campoDir.value.trim();
-  const municipalNumber = (campoMunicipal?.value || "").trim();
+  cacheRowsForExport.forEach(row => {
+    const vals = [
+      row.tipo, row.direccion, row.descripcion, row.vecino, row.estado,
+      row.nMunicipal, row.fechaRegistro, row.horaRegistro,
+      row.fechaModificacion, row.horaModificacion
+    ].map(csvEscape);
+    lines.push(vals.join(','));
+  });
 
-  if (!tipo || !descripcion) {
-    alert("Completá al menos el tipo y la descripción.");
-    return;
-  }
+  const csv = lines.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
 
-  const latLng = selectedLatLng;
-  const lat = latLng?.lat;
-  const lng = latLng?.lng;
-
-  try {
-    if (!editingDocId) {
-      if (typeof lat !== "number" || typeof lng !== "number") {
-        alert('Seleccioná ubicación (click en el mapa o "📍 Usar mi ubicación").');
-        return;
-      }
-      if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
-        alert("La ubicación está fuera de la zona permitida.");
-        return;
-      }
-
-      await db.collection("reportes").add({
-        tipo,
-        descripcion,
-        direccion,
-        municipalNumber,
-        lat,
-        lng,
-        estado: "Nuevo",
-        usuarioId: auth.currentUser.uid,
-        usuarioNombre: auth.currentUser.displayName,
-        fecha: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      alert("Reporte guardado");
-      form.reset();
-      form.classList.add("hidden");
-    } else {
-      const updateData = {
-        tipo,
-        descripcion,
-        direccion,
-        municipalNumber
-      };
-
-      if (typeof lat === "number" && typeof lng === "number") {
-        if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
-          alert("La nueva ubicación está fuera de la zona permitida.");
-          return;
-        }
-        updateData.lat = lat;
-        updateData.lng = lng;
-      }
-
-      await db.collection("reportes").doc(editingDocId).update(updateData);
-      alert("Reporte actualizado");
-      editingDocId = null;
-      form.reset();
-      form.classList.add("hidden");
-    }
-  } catch (err) {
-    console.error(err);
-    if (err.code === "permission-denied") {
-      alert("No tenés permisos para esta operación. Verificá que seas el dueño o admin.");
-    } else {
-      alert("Ocurrió un error guardando el reporte.");
-    }
-  }
-};
-
-// Cancelar edición
-if (btnCancelEdit) {
-  btnCancelEdit.onclick = () => {
-    editingDocId = null;
-    form.reset();
-    form.classList.add("hidden");
-    setFormReadonly(false);
-  };
-}
-
-// --------------------------------------------
-// Utilidad: escapar HTML para popups (corregida)
-// --------------------------------------------
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `reportes_${formatFileTimestamp(new Date())}.csv`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
