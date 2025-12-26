@@ -292,7 +292,6 @@ document.getElementById("btn-ubicacion").onclick = () => {
     abrirAlta();
     focusFirstFormField();
   }, () => alert("No se pudo obtener tu ubicación."), { enableHighAccuracy: true, timeout: 10000 });
-});
 
 // --------------------------------------------
 // REVERSE GEOCODING (Nominatim)
