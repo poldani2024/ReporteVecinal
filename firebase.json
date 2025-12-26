@@ -1,0 +1,13 @@
+
+{
+  "hosting": {
+    "public": ".",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "functions/**"],
+    "rewrites": [
+      { "source": "/api/enviar-a-muni", "function": "enviarAMuni" }
+    ]
+  },
+  "functions": {
+    "source": "functions"
+  }
+}
