@@ -59,13 +59,19 @@
     </div>
   </section>
 
+  <!-- Mensaje de zona -->
+  <div id="zone-warning" class="zone-warning hidden" role="alert">
+    ⚠️ La ubicación seleccionada está fuera de la zona permitida por la vecinal.
+    Por favor, elegí un punto dentro del área habilitada.
+  </div>
+
   <!-- MAPA -->
   <div id="map"></div>
   <button id="btn-ubicacion" class="btn-ubicacion">📍 Usar mi ubicación</button>
 
   <!-- FORMULARIO -->
   <form id="report-form" class="hidden form">
-    <h3>Nuevo reporte</h3>
+    <h3 id="form-title">Nuevo reporte</h3>
 
     <label for="tipo">Tipo:</label>
     <select id="tipo">
@@ -81,17 +87,11 @@
     <textarea id="descripcion"></textarea>
 
     <label for="direccion">Dirección:</label>
-    <input id="direccion" type="text" />
+    <input id="direccion" type="text" placeholder="Se autocompleta al elegir ubicación"/>
 
     <!-- Número municipal -->
     <label for="nroMunicipalidad">N° de reclamo de la Municipalidad de Roldán (opcional):</label>
-    <input
-      id="nroMunicipalidad"
-      type="text"
-      inputmode="numeric"
-      pattern="[0-9]*"
-      placeholder="Ej: 123456"
-    />
+    <input id="nroMunicipalidad" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Ej: 123456" />
 
     <div class="form-actions">
       <button id="btnSubmit" type="submit">Guardar reporte</button>
@@ -104,3 +104,4 @@
   <script src="script.js"></script>
 </body>
 </html>
+``
