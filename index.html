@@ -1,373 +1,72 @@
-
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <title>Reporte Vecinal</title>
-    <meta
-      name="description"
-      content="App vecinal para registrar problemas del barrio y dar seguimiento comunitario."
-    />
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reportes del Barrio</title>
+  <link rel="stylesheet" href="style.css">
 
-    <!-- Tipografía del sistema, liviana y rápida -->
-    <style>
-      :root {
-        /* Paleta accesible (verde positivo) */
-        --green-900: #1b5e20;
-        --green-800: #2e7d32;
-        --green-700: #388e3c;
-        --green-600: #43a047;
-        --green-100: #e8f5e9;
-        --green-50: #f1f8e9;
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-        --text-900: #1a1a1a;
-        --text-700: #2f3b2b;
+  <!-- Firebase (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-        --radius: 14px;
-        --shadow: 0 10px 24px rgba(46, 125, 50, 0.14);
-      }
+</head>
+<body>
 
-      * {
-        box-sizing: border-box;
-      }
+<h1>📍 Reportes del Barrio</h1>
 
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-      }
+<!-- LOGIN -->
+<div id="login-area">
+  <button id="btnLogin">Iniciar sesión con Google</button>
+  <button id="btnLogout" class="hidden">Cerrar sesión</button>
+  <span id="userInfo"></span>
+</div>
 
-      body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
-          Cantarell, "Noto Sans", "Helvetica Neue", Arial, "Apple Color Emoji",
-          "Segoe UI Emoji";
-        color: var(--text-900);
-        background: #ffffff;
-        line-height: 1.45;
-      }
+<!-- ADMIN -->
+<a id="link-admin" class="hidden" href="admin.html">Panel de Administración</a>
+<h1_1>
+Importante para reportar problemas en el barrio
+Para que tu reclamo sea atendido por las autoridades, es fundamental realizar la denuncia en el sitio oficial de la Municipalidad de Roldán:
+<a>https://www.municipalidad.com/rold/reclamos</a>
+Una vez que ingreses el reclamo en la página de la municipalidad, anota el número de reclamo y regístralo en la app de la vecinal. De esta manera podremos reunir todos los reclamos y darles seguimiento como comunidad.
+</h1_1>
 
-      header {
-        padding: 22px 20px;
-        border-bottom: 1px solid #e7e7e7;
-        background: #fff;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-      }
+  
+<!-- MAPA -->
+<div id="map"></div>
 
-      .container {
-        width: min(100%, 1024px);
-        margin: 0 auto;
-        padding: 0 16px;
-      }
+<button id="btn-ubicacion" class="btn-ubicacion">📍 Usar mi ubicación</button>
 
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
+<!-- FORMULARIO -->
+<form id="report-form" class="hidden">
+  <h3>Nuevo reporte</h3>
 
-      .brand__logo {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        background: var(--green-50);
-        border: 2px solid var(--green-700);
-        display: grid;
-        place-items: center;
-      }
+  <label>Tipo:</label>
+  <select id="tipo">
+    <option value="Falta de luz">Falta Iluminación(Alumbrado Público)</option>
+    <option value="Basura">Basura</option>
+    <option value="Inseguridad">Inseguridad</option>
+    <option value="Inseguridad">Estado de la Calle</option>
+    <option value="Inseguridad">Terreno Baldío sin limpiar</option>
+    <option value="Otro">Otro</option>
+  </select>
 
-      .brand__title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--green-900);
-        margin: 0;
-      }
+  <label>Descripción:</label>
+  <textarea id="descripcion"></textarea>
 
-      main {
-        padding: 24px 0 40px;
-      }
+  <label>Dirección:</label>
+  <input id="direccion" type="text">
 
-      /* --- Callout destacado --- */
-      .callout {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 16px;
-        align-items: start;
-        padding: 18px 20px;
-        border: 2px solid var(--green-800);
-        background: var(--green-50);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        margin: 16px auto 28px;
-      }
+  <button type="submit">Guardar reporte</button>
+</form>
 
-      .callout__icon {
-        display: grid;
-        place-items: center;
-      }
+<script src="firebase.js"></script>
+<script src="script.js"></script>
 
-      .callout__content h2 {
-        margin: 0 0 6px 0;
-        font-size: 1.25rem;
-        color: var(--green-900);
-      }
-
-      .callout__content p {
-        margin: 8px 0;
-        color: var(--text-700);
-      }
-
-      .callout__link {
-        color: var(--green-700);
-        font-weight: 700;
-        text-decoration: underline;
-        text-underline-offset: 3px;
-      }
-
-      .callout__link:focus,
-      .callout__link:hover {
-        color: var(--green-800);
-        background: rgba(46, 125, 50, 0.08);
-        border-radius: 6px;
-        outline: none;
-      }
-
-      /* --- Bloque de registro del número de reclamo --- */
-      .card {
-        border: 1px solid #e4e4e4;
-        border-radius: 12px;
-        padding: 18px;
-        margin: 10px 0;
-      }
-
-      .card h3 {
-        margin: 0 0 8px 0;
-        font-size: 1.1rem;
-        color: var(--green-800);
-      }
-
-      .form-row {
-        display: grid;
-        gap: 10px;
-        grid-template-columns: 1fr auto;
-        margin-top: 8px;
-      }
-
-      input[type="text"] {
-        width: 100%;
-        height: 40px;
-        padding: 10px 12px;
-        border-radius: 10px;
-        border: 1px solid #cfd8dc;
-        font-size: 1rem;
-      }
-
-      input[type="text"]::placeholder {
-        color: #959595;
-      }
-
-      button {
-        height: 40px;
-        padding: 0 16px;
-        border: none;
-        border-radius: 10px;
-        background: var(--green-700);
-        color: #fff;
-        font-weight: 700;
-        cursor: pointer;
-      }
-
-      button:hover,
-      button:focus {
-        background: var(--green-800);
-      }
-
-      .muted {
-        color: #666;
-        font-size: 0.95rem;
-      }
-
-      footer {
-        margin-top: 40px;
-        padding: 18px 0 28px;
-        border-top: 1px solid #eee;
-        color: #666;
-        font-size: 0.95rem;
-      }
-
-      /* Responsivo */
-      @media (max-width: 520px) {
-        .callout {
-          grid-template-columns: 1fr;
-        }
-        .form-row {
-          grid-template-columns: 1fr;
-        }
-        button {
-          width: 100%;
-        }
-      }
-    </style>
-  </head>
-
-  <body>
-    <header>
-      <div class="container">
-        <div class="brand" role="banner" aria-label="Reporte Vecinal">
-          <div class="brand__logo" aria-hidden="true">
-            <!-- pequeño ícono de vecinal/ciudad -->
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M4 10l8-6 8 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8z"
-                stroke="#2E7D32"
-                stroke-width="2"
-                fill="#E8F5E9"
-              />
-              <path
-                d="M9 14h6v6H9z"
-                fill="#2E7D32"
-                opacity="0.25"
-              />
-            </svg>
-          </div>
-          <h1 class="brand__title">Reporte Vecinal</h1>
-        </div>
-      </div>
-    </header>
-
-    <main>
-      <div class="container">
-        <!-- Aviso principal -->
-        <section class="callout" role="complementary" aria-label="Aviso importante">
-          <div class="callout__icon" aria-hidden="true">
-            <!-- Ícono positivo (check) -->
-            <svg
-              viewBox="0 0 24 24"
-              width="32"
-              height="32"
-              role="img"
-              aria-label="Importante"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="11"
-                fill="#E8F5E9"
-                stroke="#2E7D32"
-                stroke-width="2"
-              ></circle>
-              <path
-                d="M7 12.5l3 3 7-8"
-                fill="none"
-                stroke="#2E7D32"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              ></path>
-            </svg>
-          </div>
-
-          <div class="callout__content">
-            <h2>Importante para reportar problemas en el barrio</h2>
-            <p>
-              Para que tu reclamo sea atendido por las autoridades, es fundamental
-              realizar la denuncia en el sitio oficial de la Municipalidad de Roldán:
-              https://www.municipalidad.com/rold/reclamos
-              </a>.
-            </p>
-            <p>
-              Una vez ingresado el reclamo, anotá el número y registralo en la app de
-              la vecinal para que podamos <strong>juntar todos los reclamos como comunidad</strong>.
-            </p>
-          </div>
-        </section>
-
-        <!-- Registro del número de reclamo (mock UI local) -->
-        <section class="card" aria-label="Registro de número de reclamo">
-          <h3>Registrar el número de reclamo en la vecinal</h3>
-          <p class="muted">
-            Ingresá el número de reclamo emitido por la municipalidad. Esto nos ayuda a
-            consolidar y dar seguimiento conjunto.
-          </p>
-
-          <div class="form-row">
-            <label class="visually-hidden" for="nroReclamo">Número de reclamo</label>
-            <input
-              id="nroReclamo"
-              type="text"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              placeholder="Ej: 123456"
-              aria-label="Número de reclamo"
-            />
-            <button id="btnGuardar" type="button">Guardar</button>
-          </div>
-
-          <p id="estado" class="muted" aria-live="polite" style="margin-top: 8px;">
-            <!-- feedback -->
-          </p>
-        </section>
-
-        <footer class="container">
-          © Vecinal — {{año actual}} · Hecho con colaboración comunitaria.
-        </footer>
-      </div>
-    </main>
-
-    <!-- Pequeño script para feedback local -->
-    <script>
-      (function () {
-        const input = document.getElementById("nroReclamo");
-        const btn = document.getElementById("btnGuardar");
-        const estado = document.getElementById("estado");
-
-        function isValidNumber(value) {
-          return /^\d{3,}$/.test(value.trim());
-        }
-
-        btn.addEventListener("click", function () {
-          const nro = input.value.trim();
-          if (!isValidNumber(nro)) {
-            estado.textContent =
-              "Ingresá un número válido (al menos 3 dígitos).";
-            estado.style.color = "#c62828";
-            return;
-          }
-          // Guardado simulado en localStorage (podés reemplazar por tu API)
-          const lista = JSON.parse(localStorage.getItem("vecinal_reclamos") || "[]");
-          lista.push({ nro, fecha: new Date().toISOString() });
-          localStorage.setItem("vecinal_reclamos", JSON.stringify(lista));
-
-          estado.textContent =
-            "¡Listo! Número guardado localmente. (Si tenés backend, reemplazá este guardado por una llamada a tu API)";
-          estado.style.color = "#2e7d32";
-          input.value = "";
-          input.focus();
-        });
-      })();
-    </script>
-
-    <!-- Utilidad para esconder label visual pero mantener accesibilidad -->
-    <style>
-      .visually-hidden {
-        position: absolute !important;
-        height: 1px;
-        width: 1px;
-        overflow: hidden;
-        clip: rect(1px, 1px, 1px, 1px);
-        white-space: nowrap;
-      }
-    </style>
-  </body>
+</body>
 </html>
