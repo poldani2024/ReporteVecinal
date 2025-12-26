@@ -231,3 +231,62 @@ button:hover {
 .table--hover tbody tr:hover {
   background: #eef6ff;
 }
+
+
+/* ---------------------------------------------------
+   Callout municipal (aviso destacado) — ROJO/NARANJA
+--------------------------------------------------- */
+.callout {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: start;
+  padding: 18px 20px;
+
+  /* NUEVO esquema de color */
+  border: 2px solid #C62828;        /* rojo intenso del marco */
+  background: #FFE0B2;              /* naranja claro con tinte rojizo */
+  /* Si lo querés más rojizo: #FFCCBC (naranja rojizo suave) */
+
+  border-radius: 16px;               /* más redondeado */
+  box-shadow: 0 8px 20px rgba(198, 40, 40, 0.12);
+  margin: 16px auto 28px;
+  width: min(100% - 32px, 1000px);
+}
+
+.callout__icon {
+  display: grid;
+  place-items: center;
+}
+
+.callout__content h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.25rem;
+  color: #7F0000;                    /* rojo oscuro para el título */
+}
+
+.callout__content p {
+  margin: 8px 0;
+  color: #4A2A2A;                    /* texto con tinte marrón/rojo */
+  line-height: 1.55;
+}
+
+.callout__link {
+  color: #B71C1C;                    /* rojo para el enlace */
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.callout__link:hover,
+.callout__link:focus {
+  color: #C62828;
+  background: rgba(198, 40, 40, 0.10);
+  border-radius: 6px;
+  outline: none;
+}
+
+/* Responsivo */
+@media (max-width: 520px) {
+  .callout { grid-template-columns: 1fr; }
+}
