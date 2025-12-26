@@ -8,17 +8,30 @@ const userInfo   = document.getElementById("userInfo");
 const linkAdmin  = document.getElementById("link-admin");
 
 let currentUser      = null;
-let currentUserRole  = "vecino";   // 🆕 rol del usuario (admin/vecino)
+let currentUserRole  = "vecino";
 let editingDocId     = null;
 let selectedLatLng   = null;
 let markerTemp       = null;
 const markersByDoc   = new Map();
 let unsubReportes    = null;
-let formReadOnly     = false;      // 🆕 flag: el formulario está en solo-lectura
+let formReadOnly     = false;
 
-btnLogin.onclick = () => {
+// Detección básica iOS/Safari para usar redirect (más estable que popup)
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+btnLogin.onclick = async () => {
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(err => console.error(err));
+  try {
+    if (isIOS && isSafari) {
+      await auth.signInWithRedirect(provider);
+    } else {
+      await auth.signInWithPopup(provider);
+    }
+  } catch (err) {
+    console.error('[auth] signIn error', err);
+    alert('No se pudo iniciar sesión. Probá nuevamente.');
+  }
 };
 
 btnLogout.onclick = () => auth.signOut();
@@ -28,7 +41,7 @@ auth.onAuthStateChanged(async (user) => {
   currentUserRole = "vecino";
 
   if (user) {
-    userInfo.textContent = `Conectado como: ${user.displayName}`;
+    userInfo.textContent = `Conectado como: ${user.displayName || user.email}`;
     btnLogin.classList.add("hidden");
     btnLogout.classList.remove("hidden");
 
@@ -45,7 +58,7 @@ auth.onAuthStateChanged(async (user) => {
     }
 
     const data = (await userRef.get()).data();
-    currentUserRole = data.rol || "vecino";              // 🆕 guardamos el rol
+    currentUserRole = data.rol || "vecino";
     linkAdmin.classList.toggle("hidden", currentUserRole !== "admin");
   } else {
     userInfo.textContent = "";
@@ -74,14 +87,11 @@ const barrioCoords = [
 function puntoEnPoligono(lat, lng, poligono) {
   let dentro = false;
   const pts = poligono.getLatLngs()[0];
-
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
     const xi = pts[i].lat, yi = pts[i].lng;
     const xj = pts[j].lat, yj = pts[j].lng;
-
     const intersecta = ((yi > lng) !== (yj > lng)) &&
       (lat < (xj - xi) * (lng - yi) / (yj - yi + 1e-12) + xi);
-
     if (intersecta) dentro = !dentro;
   }
   return dentro;
@@ -104,7 +114,7 @@ const map = L.map("map", {
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
-  attribution: "&copy; OpenStreetMap contributors"
+  attribution: "© OpenStreetMap contributors"
 }).addTo(map);
 
 barrioPolygon.addTo(map);
@@ -123,7 +133,7 @@ L.polygon([world, barrioCoords], {
 }).addTo(map);
 
 // --------------------------------------------
-// COLORES DE MARCADORES (violeta propio, azul resto)
+// COLORES DE MARCADORES
 // --------------------------------------------
 const COLOR_MIO_BORDE  = "#7B1FA2";
 const COLOR_MIO_FILL   = "#BA68C8";
@@ -141,20 +151,16 @@ function makeCircleMarker(lat, lng, isMine) {
 }
 
 // --------------------------------------------
-// 🆕 Utilidad: enfocar el primer campo del formulario (y hacer scroll)
+// Utilidad: enfocar el primer campo del formulario (y hacer scroll)
 // --------------------------------------------
 function focusFirstFormField() {
   const form = document.getElementById('report-form');
   if (form) {
-    form.classList.remove('hidden');                       // asegurar visible
+    form.classList.remove('hidden');
     const firstField =
-      document.getElementById('tipo') ||                   // preferido
-      form.querySelector('input, select, textarea');       // fallback
-
-    // desplazar el formulario al inicio de la vista
+      document.getElementById('tipo') ||
+      form.querySelector('input, select, textarea');
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    // pequeño delay por si hay re-render o scroll
     setTimeout(() => { firstField?.focus(); }, 60);
   }
 }
@@ -163,11 +169,9 @@ function focusFirstFormField() {
 // SUSCRIPCIÓN A "reportes"
 // --------------------------------------------
 function subscribeReportes() {
-  // limpiar marcadores previos
   for (const [, mk] of markersByDoc) mk.remove();
   markersByDoc.clear();
 
-  // desuscribir si hay previo
   if (typeof unsubReportes === "function") {
     unsubReportes();
     unsubReportes = null;
@@ -192,7 +196,6 @@ function subscribeReportes() {
 
         const isMine = currentUser && r.usuarioId === currentUser.uid;
 
-        // reemplazar si existía
         if (markersByDoc.has(docId)) {
           markersByDoc.get(docId).remove();
           markersByDoc.delete(docId);
@@ -208,26 +211,20 @@ function subscribeReportes() {
             <i>${escapeHtml(r.usuarioNombre || "")}</i>
           `);
 
-        // Click en marcador:
         marker.on("click", async () => {
-          // Autocompletar dirección (por si se quiere actualizar/ver)
           const direccion = await obtenerDireccion(lat, lng);
           document.getElementById("direccion").value = direccion;
           selectedLatLng = { lat, lng };
           colocarMarkerTemp(selectedLatLng);
 
           if (isMine) {
-            // Mi reporte: edición habilitada
             abrirEdicion(docId, r, { readOnly: false });
           } else if (currentUserRole === "admin") {
-            // Admin: puede editar reportes ajenos
             abrirEdicion(docId, r, { readOnly: false });
           } else {
-            // Otro usuario y no admin: ver en solo-lectura
             abrirEdicion(docId, r, { readOnly: true });
           }
-
-          focusFirstFormField(); // 🆕 al abrir edición, enfocar y mostrar detalle
+          focusFirstFormField();
         });
 
         markersByDoc.set(docId, marker);
@@ -236,12 +233,10 @@ function subscribeReportes() {
 }
 
 // --------------------------------------------
-// CLICK EN MAPA — NUEVO REPORTE (zona + dirección)
-// (si el form está en solo-lectura por ver reporte ajeno, ignoramos el click)
+// CLICK EN MAPA — NUEVO REPORTE
 // --------------------------------------------
 map.on("click", async (e) => {
   if (formReadOnly && editingDocId) {
-    // Estamos viendo reporte ajeno en solo-lectura; no permitir seleccionar nueva ubicación
     alert("Estás viendo un reporte en modo solo-lectura. No podés cambiar su ubicación.");
     return;
   }
@@ -259,8 +254,8 @@ map.on("click", async (e) => {
   document.getElementById("direccion").value = direccion;
 
   colocarMarkerTemp(p);
-  abrirAlta();                 // modo alta
-  focusFirstFormField();       // 🆕 enfocar primer campo
+  abrirAlta();
+  focusFirstFormField();
 });
 
 // --------------------------------------------
@@ -295,9 +290,9 @@ document.getElementById("btn-ubicacion").onclick = () => {
     document.getElementById("direccion").value = direccion;
 
     abrirAlta();
-    focusFirstFormField();     // 🆕 enfocar primer campo
+    focusFirstFormField();
   }, () => alert("No se pudo obtener tu ubicación."), { enableHighAccuracy: true, timeout: 10000 });
-};
+});
 
 // --------------------------------------------
 // REVERSE GEOCODING (Nominatim)
@@ -340,31 +335,27 @@ const campoTipo       = document.getElementById("tipo");
 const campoDesc       = document.getElementById("descripcion");
 const campoDir        = document.getElementById("direccion");
 const campoMunicipal  = document.getElementById("nroMunicipalidad");
-const btnCancelEdit   = document.getElementById("btnCancelEdit"); // si existe
-const btnSubmit       = document.getElementById("btnSubmit");     // si existe
-const formTitle       = document.getElementById("form-title");    // si existe
+const btnCancelEdit   = document.getElementById("btnCancelEdit");
+const btnSubmit       = document.getElementById("btnSubmit");
+const formTitle       = document.getElementById("form-title");
 
 function setFormReadonly(ro) {
   formReadOnly = !!ro;
 
-  // Deshabilitar/habilitar campos
   campoTipo.disabled      = formReadOnly;
   campoDesc.disabled      = formReadOnly;
   campoDir.disabled       = formReadOnly;
   if (campoMunicipal) campoMunicipal.disabled = formReadOnly;
 
-  // Botón guardar
   if (btnSubmit) {
     btnSubmit.disabled  = formReadOnly;
     btnSubmit.textContent = formReadOnly ? "Guardar deshabilitado" : "Guardar reporte";
   }
 
-  // Mostrar/ocultar “Cancelar edición”
   if (btnCancelEdit) {
-    btnCancelEdit.classList.toggle("hidden", !editingDocId); // visible si estamos viendo/edita
+    btnCancelEdit.classList.toggle("hidden", !editingDocId);
   }
 
-  // Título del form
   if (formTitle) {
     if (!editingDocId) {
       formTitle.textContent = "Nuevo reporte";
@@ -391,13 +382,11 @@ function abrirEdicion(docId, r, opts = { readOnly: false }) {
   form.classList.remove("hidden");
   setFormReadonly(!!opts.readOnly);
 
-  // centrar mapa en el reclamo
   if (typeof r.lat === "number" && typeof r.lng === "number") {
     map.setView([r.lat, r.lng], 17);
     colocarMarkerTemp({ lat: r.lat, lng: r.lng });
   }
-
-  focusFirstFormField(); // 🆕 enfocar primer campo al abrir edición
+  focusFirstFormField();
 }
 
 // Submit (alta o edición)
@@ -409,7 +398,6 @@ form.onsubmit = async (ev) => {
     return;
   }
 
-  // Bloquear si estamos en solo-lectura (reporte ajeno y no admin)
   if (formReadOnly) {
     alert("No tenés permisos para editar este reporte.");
     return;
@@ -431,7 +419,6 @@ form.onsubmit = async (ev) => {
 
   try {
     if (!editingDocId) {
-      // ALTA: validar zona
       if (typeof lat !== "number" || typeof lng !== "number") {
         alert('Seleccioná ubicación (click en el mapa o "📍 Usar mi ubicación").');
         return;
@@ -458,7 +445,6 @@ form.onsubmit = async (ev) => {
       form.reset();
       form.classList.add("hidden");
     } else {
-      // EDICIÓN: si se cambió ubicación, validar zona
       const updateData = {
         tipo,
         descripcion,
@@ -491,7 +477,7 @@ form.onsubmit = async (ev) => {
   }
 };
 
-// Cancelar edición (si existe)
+// Cancelar edición
 if (btnCancelEdit) {
   btnCancelEdit.onclick = () => {
     editingDocId = null;
