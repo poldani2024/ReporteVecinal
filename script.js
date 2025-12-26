@@ -257,7 +257,16 @@ map.on("click", async (e) => {
   abrirAlta();
   focusFirstFormField();
 });
-
+// Utilidad: escapar HTML para popups (corregida y robusta)
+function escapeHtml(input) {
+  const str = String(input ?? "");
+  return str
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 // --------------------------------------------
 // UBICACIÓN ACTUAL (GPS) — zona + dirección
 // --------------------------------------------
@@ -484,17 +493,5 @@ if (btnCancelEdit) {
     form.classList.add("hidden");
     setFormReadonly(false);
   };
-}
-
-
-// Utilidad: escapar HTML para popups (corregida y robusta)
-function escapeHtml(input) {
-  const str = String(input ?? "");
-  return str
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
