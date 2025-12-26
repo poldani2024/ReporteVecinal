@@ -1,88 +1,87 @@
 
-// functions/index.js
+// functions/index.js (Node 18, ESM)
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { webkit /* o chromium */ } from 'playwright';
-import cors from 'cors';
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-const corsHandler = cors({
-  origin: [
-    'https://poldani2024.github.io',          // tu GitHub Pages
-    'https://reportevecinal.web.app',         // si migrás Hosting
-    'https://reportevecinal.firebaseapp.com'  // idem
-  ],
-  methods: ['POST', 'OPTIONS'],
-});
+// Orígenes permitidos (agregá/mantené los que uses)
+const ALLOWED_ORIGINS = new Set([
+  'https://poldani2024.github.io',          // GitHub Pages
+  'https://reportevecinal.web.app',         // Firebase Hosting (si migrás)
+  'https://reportevecinal.firebaseapp.com'  // Firebase Hosting secundario
+]);
 
-// Helper: esperar y loguear errores visibles
-async function safeClick(page, locatorDesc, locator) {
-  try {
-    await locator.waitFor({ state: 'visible', timeout: 10000 });
-    await locator.click();
-    console.log(`[OK] Click: ${locatorDesc}`);
-  } catch (e) {
-    console.error(`[FAIL] Click: ${locatorDesc}`, e);
-    throw new Error(`No se pudo hacer click en "${locatorDesc}".`);
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin'); // buena práctica para caches
   }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 }
 
 export const enviarPaso1Muni = functions
-  .runWith({ memory: '1GiB', timeoutSeconds: 120 }) // Playwright necesita memoria
+  .runWith({ memory: '1GiB', timeoutSeconds: 120 })
   .https.onRequest(async (req, res) => {
-    corsHandler(req, res, async () => {
-      try {
-        if (req.method === 'OPTIONS') return res.status(204).send('');
-        if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Método no permitido' });
+    try {
+      // CORS siempre
+      setCorsHeaders(req, res);
 
-        // Datos que vas a mandar desde el admin:
-        const { detalle } = req.body;
-        if (!detalle || typeof detalle !== 'string') {
-          return res.status(400).json({ ok: false, error: 'Falta "detalle" (string)' });
-        }
-
-        // Lanzar WebKit (Safari-like). Si falla, cambia a "chromium".
-        const browser = await webkit.launch({ headless: true });
-        const context = await browser.newContext({
-          userAgent:
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-          viewport: { width: 414, height: 896 }, // iPhone 11/12 aprox
-        });
-        const page = await context.newPage();
-
-        console.log('[NAV] Abriendo formulario municipal…');
-        await page.goto('https://www.municipalidad.com/rold/reclamos', { waitUntil: 'networkidle' });
-
-        // 1) Seleccionar categoría "Mantenimiento de Calles"
-        // Si es un botón/expander con texto:
-        const mantenimientoBtn = page.getByRole('button', { name: /Mantenimiento de Calles/i });
-        await safeClick(page, 'Mantenimiento de Calles', mantenimientoBtn);
-
-        // 2) Elegir "Mantenimiento de Calles de Tierra"
-        const opcionTierra = page.getByText(/Mantenimiento de Calles de Tierra/i, { exact: true });
-        await safeClick(page, 'Mantenimiento de Calles de Tierra', opcionTierra);
-
-        // 3) Completar "Detalles" (placeholder "Ingrese más detalles ...")
-        const areaDetalle = page.getByPlaceholder(/Ingrese más detalles/i);
-        await areaDetalle.fill(detalle);
-        console.log('[OK] Detalles completados');
-
-        // 4) Click en "Siguiente"
-        const btnSiguiente = page.getByRole('button', { name: /Siguiente/i });
-        await safeClick(page, 'Siguiente', btnSiguiente);
-
-        // Podés continuar con los pasos siguientes aquí si querés
-        // (ubicación, datos personales, confirmación, número de reclamo, etc.)
-
-        await browser.close();
-
-        return res.json({ ok: true, paso: 'tipo/motivo/detalle/siguiente' });
-      } catch (err) {
-        console.error('[enviarPaso1Muni] error:', err);
-        return res.status(500).json({ ok: false, error: err.message || 'Error interno' });
+      // Preflight (OPTIONS)
+      if (req.method === 'OPTIONS') {
+        return res.status(204).send(''); // sin body
       }
-    });
+
+      if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Método no permitido' });
+      }
+
+      // Lee el JSON del cuerpo
+      const { detalle } = typeof req.body === 'object' ? req.body : {};
+      if (!detalle || typeof detalle !== 'string') {
+        return res.status(400).json({ ok: false, error: 'Falta "detalle" (string)' });
+      }
+
+      // Lanzar Playwright (si webkit falla en Functions, usá chromium)
+      const browser = await webkit.launch({ headless: true });
+      const context = await browser.newContext({
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+        viewport: { width: 414, height: 896 },
+      });
+      const page = await context.newPage();
+
+      // Navegar
+      await page.goto('https://www.municipalidad.com/rold/reclamos', { waitUntil: 'networkidle' });
+
+      // Seleccionar "Mantenimiento de Calles" y "Mantenimiento de Calles de Tierra"
+      const mantenimientoBtn = page.getByRole('button', { name: /Mantenimiento de Calles/i });
+      await mantenimientoBtn.click();
+
+      const opcionTierra = page.getByText(/Mantenimiento de Calles de Tierra/i, { exact: true });
+      await opcionTierra.click();
+
+      // Completar "Detalles" (placeholder típico)
+      const areaDetalle = page.getByPlaceholder(/Ingrese más detalles/i);
+      await areaDetalle.fill(detalle);
+
+      // Click en "Siguiente"
+      const btnSiguiente = page.getByRole('button', { name: /Siguiente/i });
+      await btnSiguiente.click();
+
+      await browser.close();
+
+      // Responder JSON con CORS ya aplicado
+      return res.status(200).json({ ok: true, paso: 'tipo/motivo/detalle/siguiente' });
+    } catch (err) {
+      console.error('[enviarPaso1Muni] error:', err);
+      setCorsHeaders(req, res); // asegurar cabeceras también en error
+      return res.status(500).json({ ok: false, error: err?.message || 'Error interno' });
+    }
   });
