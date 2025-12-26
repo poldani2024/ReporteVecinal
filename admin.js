@@ -1,89 +1,59 @@
 
 /**
  * admin.js — Panel de administración de Reportes
- * - Lista en tiempo real la colección "reportes"
- * - Eliminar (dueño o admin, según reglas)
- * - Exportar CSV
- * - Acciones municipales (Paso 1 Playwright / POST directo)
- * - DIAGNÓSTICOS: logs visibles en cada etapa
+ * v2025-12-26-02
+ * - Lista en tiempo real "reportes"
+ * - Eliminar (dueño/admin)
+ * - Export CSV
+ * - Botón “Municipalidad – Paso 1” (Playwright, Cloud Function)
+ * - Botón “Enviar a Municipalidad (POST)” (Cloud Function)
  */
 
-console.log('[admin.js] v2025-12-26-01');
+console.log('[admin.js] v2025-12-26-02');
 
+// --- Firebase ---
 try {
   window.auth = window.auth || firebase.auth();
   window.db   = window.db   || firebase.firestore();
   console.log('🔥 Firebase cargado correctamente');
 } catch (e) {
-  console.error('No se encontró Firebase (firebase.js). Incluí firebase.js antes de admin.js', e);
+  console.error('No se encontró Firebase. Incluí firebase.js antes de admin.js', e);
 }
 
-// ---- Config de Functions (ajustar URLs de tu proyecto) ----
+// --- Config: URLs de Cloud Functions (ajustar si es necesario) ---
 const FN_URL_STEP1 = 'https://us-central1-reportevecinal.cloudfunctions.net/enviarPaso1Muni'; // Playwright paso 1
 const FN_URL_FULL  = 'https://us-central1-reportevecinal.cloudfunctions.net/enviarAMuni';     // POST directo (opcional)
 
-// ---- Elementos del DOM ----
+// --- DOM ---
 const tbody        = document.getElementById('tbody-reportes');
 const adminUserEl  = document.getElementById('adminUserInfo');
 const btnExportCsv = document.getElementById('btnExportCsv');
 
-if (!tbody) {
-  console.error('[admin.js] tbody-reportes NO existe en el DOM. Verificá el id en admin.html');
-} else {
-  console.log('[admin.js] tbody-reportes OK');
-}
+if (!tbody) console.error('[admin.js] tbody-reportes NO existe en el DOM');
 
+// --- Estado ---
 let unsub = null;
 let currentUser = null;
 let currentRole = 'vecino';
 let cacheRowsForExport = [];
 
-const SHOW_ONLY_OWN_FOR_VECINO = true;  // vecinos ven solo propios
-const ORDER_BY_FECHA = true;            // si sospechamos problema de index, podemos poner false para probar sin orderBy
+const SHOW_ONLY_OWN_FOR_VECINO = true;
+const ORDER_BY_FECHA = true;
 
-btnSendStep1.addEventListener('click', async () => {
-  const detalle = prompt('Detalle del reclamo (Municipalidad – Paso 1):', d.descripcion || '');
-  if (!detalle) return;
-
-  try {
-    const resp = await fetch('https://us-central1-reportevecinal.cloudfunctions.net/enviarPaso1Muni', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({ detalle })
-    });
-
-    const ct = resp.headers.get('content-type') || '';
-    if (!resp.ok) {
-      const body = ct.includes('application/json') ? await resp.json() : await resp.text();
-      throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${typeof body === 'string' ? body.slice(0, 200) : JSON.stringify(body)}`);
-    }
-
-    const data = await resp.json();
-    alert(data.ok ? 'Paso 1 ejecutado correctamente.' : `Fallo: ${data.error || ''}`);
-  } catch (e) {
-    console.error(e);
-    alert('Error en Paso 1: ' + (e?.message || ''));
-  }
-});
-
-// ---- Utilidades ----
+// --- Utilidades ---
 function formatDate(d) { return d.toLocaleDateString('es-AR'); }
 function formatTime(d) { return d.toLocaleTimeString('es-AR', { hour12: false }); }
 function formatFileTimestamp(d) {
   const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
 }
 function csvEscape(val) {
   if (val == null) return '';
   const s = String(val);
-  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
-  return s;
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-// ---- Render de fila ----
+// --- Render de fila (TODOS los botones van dentro de esta función) ---
 function renderRow(doc) {
   const d = doc.data();
 
@@ -107,7 +77,7 @@ function renderRow(doc) {
   const tdHReg      = document.createElement('td');
   const tdFMod      = document.createElement('td');
   const tdHMod      = document.createElement('td');
-  const tdAcc       = document.createElement('td');
+  const tdAcc       = document.createElement('td'); // 👈 SE USA SOLO AQUÍ
 
   tdTipo.textContent      = d.tipo || '';
   tdDir.textContent       = d.direccion || '';
@@ -120,7 +90,7 @@ function renderRow(doc) {
   tdFMod.textContent      = fechaMod;
   tdHMod.textContent      = horaMod;
 
-  // --- Botón Paso 1 (Playwright) ---
+  // --- Botón “Municipalidad – Paso 1” (Playwright) ---
   const btnSendStep1 = document.createElement('button');
   btnSendStep1.className = 'btn-primary';
   btnSendStep1.textContent = 'Municipalidad – Paso 1';
@@ -147,7 +117,7 @@ function renderRow(doc) {
     }
   });
 
-  // --- Botón POST directo (opcional) ---
+  // --- Botón “Enviar a Municipalidad (POST)” (opcional) ---
   const btnSendFull = document.createElement('button');
   btnSendFull.className = 'btn-secondary';
   btnSendFull.textContent = 'Enviar a Municipalidad (POST)';
@@ -169,14 +139,16 @@ function renderRow(doc) {
         throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${typeof body === 'string' ? body.slice(0, 200) : JSON.stringify(body)}`);
       }
       const data = await resp.json();
-      alert(data.ok && data.nroMunicipal ? `Enviado. N° municipal: ${data.nroMunicipal}` : `No se obtuvo N° municipal: ${data.error || ''}`);
+      alert(data.ok && data.nroMunicipal
+        ? `Enviado. N° municipal: ${data.nroMunicipal}`
+        : `No se obtuvo N° municipal: ${data.error || ''}`);
     } catch (e) {
       console.error(e);
       alert('Error al enviar (POST): ' + (e?.message || ''));
     }
   });
 
-  // --- Eliminar ---
+  // --- Botón Eliminar ---
   const btnDel = document.createElement('button');
   btnDel.className = 'btn-danger';
   btnDel.textContent = 'Eliminar';
@@ -184,11 +156,7 @@ function renderRow(doc) {
 
   const isOwner   = currentUser && d.usuarioId === currentUser.uid;
   const canDelete = isOwner || currentRole === 'admin';
-
-  if (!canDelete) {
-    btnDel.disabled = true;
-    btnDel.title = 'No tenés permisos para eliminar este reporte';
-  }
+  if (!canDelete) { btnDel.disabled = true; btnDel.title = 'No tenés permisos para eliminar este reporte'; }
 
   btnDel.addEventListener('click', async () => {
     if (!canDelete) return alert('No tenés permisos (dueño/admin).');
@@ -203,13 +171,14 @@ function renderRow(doc) {
     }
   });
 
-  // Acciones
+  // --- Agregar acciones al TD ---
   tdAcc.appendChild(btnSendStep1);
   tdAcc.appendChild(document.createTextNode(' '));
   tdAcc.appendChild(btnSendFull);
   tdAcc.appendChild(document.createTextNode(' '));
   tdAcc.appendChild(btnDel);
 
+  // --- Agregar celdas a la fila ---
   tr.appendChild(tdTipo);
   tr.appendChild(tdDir);
   tr.appendChild(tdDesc);
@@ -222,6 +191,7 @@ function renderRow(doc) {
   tr.appendChild(tdHMod);
   tr.appendChild(tdAcc);
 
+  // --- Cache para CSV ---
   cacheRowsForExport.push({
     tipo: d.tipo || '',
     direccion: d.direccion || '',
@@ -238,19 +208,13 @@ function renderRow(doc) {
   return tr;
 }
 
-// ---- Suscripción en tiempo real ----
+// --- Suscripción en tiempo real ---
 function subscribeReportes({ onlyMine = false, uid = null }) {
   console.log('[subscribeReportes] onlyMine=', onlyMine, 'uid=', uid);
 
-  if (!tbody) {
-    console.error('[subscribeReportes] tbody-reportes NO está disponible');
-    return;
-  }
+  if (!tbody) return;
 
-  if (typeof unsub === 'function') {
-    unsub();
-    unsub = null;
-  }
+  if (typeof unsub === 'function') { unsub(); unsub = null; }
 
   tbody.innerHTML = '<tr><td colspan="11">Cargando…</td></tr>';
   cacheRowsForExport = [];
@@ -259,9 +223,7 @@ function subscribeReportes({ onlyMine = false, uid = null }) {
   if (ORDER_BY_FECHA) query = query.orderBy('fecha', 'desc');
 
   if (onlyMine && uid) {
-    // IMPORTANTE: where + orderBy suele requerir índice compuesto
-    query = db.collection('reportes')
-      .where('usuarioId', '==', uid);
+    query = db.collection('reportes').where('usuarioId', '==', uid);
     if (ORDER_BY_FECHA) query = query.orderBy('fecha', 'desc');
   }
 
@@ -277,32 +239,19 @@ function subscribeReportes({ onlyMine = false, uid = null }) {
       }
 
       snap.forEach((doc) => {
-        try {
-          tbody.appendChild(renderRow(doc));
-        } catch (e) {
-          console.error('[renderRow] error:', e);
-        }
+        try { tbody.appendChild(renderRow(doc)); }
+        catch (e) { console.error('[renderRow] error:', e); }
       });
     },
     (err) => {
       console.error('[onSnapshot] error:', err);
       const msg = (err && (err.message || err.code)) || 'desconocido';
       tbody.innerHTML = `<tr><td colspan="11">Error al cargar: ${msg}</td></tr>`;
-      // Si aparece "This query requires an index", Firestore suele dar una URL en el error.message
-      if (err && err.message && err.message.includes('index')) {
-        const urlMatch = err.message.match(/https:\/\/console\.firebase\.google\.com\/[^\s]+/);
-        if (urlMatch) {
-          const idxUrl = urlMatch[0];
-          const p = document.createElement('p');
-          p.textContent = 'Crear índice: ' + idxUrl;
-          tbody.parentElement.appendChild(p);
-        }
-      }
     }
   );
 }
 
-// ---- Auth + roles ----
+// --- Auth + roles ---
 firebase.auth().onAuthStateChanged(async (user) => {
   console.log('[auth] onAuthStateChanged user=', user && (user.displayName || user.email));
   currentUser = user || null;
@@ -332,7 +281,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
   }
 });
 
-// ---- Export CSV ----
+// --- Export CSV ---
 btnExportCsv?.addEventListener('click', () => {
   if (!cacheRowsForExport.length) {
     alert('No hay datos para exportar.');
