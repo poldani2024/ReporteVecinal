@@ -3,10 +3,12 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Reportes del Barrio</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <title>📍 Reportes del Barrio</title>
 
-  <!-- CSS propio -->
   <link rel="stylesheet" href="style.css" />
 
   <!-- Leaflet -->
@@ -17,6 +19,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script src="firebase.js"></script>
 </head>
 <body>
   <header class="header">
@@ -30,7 +34,7 @@
     </div>
 
     <!-- ADMIN -->
-    <a id="link-admin" class="hidden admin-link" href="admin.html">Panel de Administración</a>
+    <a id="link-admin" class="btn-link hidden" href="admin.html">Panel de Administración</a>
   </header>
 
   <!-- Aviso oficial de reclamos (callout) -->
@@ -38,8 +42,8 @@
     <div class="callout__icon" aria-hidden="true">
       <!-- Ícono positivo (check) en SVG -->
       <svg viewBox="0 0 24 24" width="32" height="32" role="img" aria-label="Importante">
-        <circle cx="12" cy="12" r="11" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2"></circle>
-        <path d="M7 12.5l3 3 7-8" fill="none" stroke="#2E7D32" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+        <circle cx="12" cy="12" r="11" fill="#FFE0B2" stroke="#C62828" stroke-width="2"></circle>
+        <path d="M7 12.5l3 3 7-8" fill="none" stroke="#C62828" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
       </svg>
     </div>
 
@@ -48,9 +52,7 @@
       <p>
         Para que tu reclamo sea atendido por las autoridades, es fundamental realizar la denuncia en el
         sitio oficial de la Municipalidad de Roldán:
-        <a class="callout__link" href="https://www.municipalidad.com/rold/reclamos" target="_blank" rel="noopener noreferrer">
-          https://www.municipalidad.com/rold/reclamos
-        </a>.
+        <a class="callout__link" href="https://www.municipalidad.com/rold/reclamos" target="_blank" rel="noopener">https://www.municipalidad.com/rold/reclamos</a>.
       </p>
       <p>
         Una vez ingresado el reclamo, anotá el número y registralo en la app de la vecinal para que podamos
@@ -84,14 +86,20 @@
     </select>
 
     <label for="descripcion">Descripción:</label>
-    <textarea id="descripcion"></textarea>
+    <textarea id="descripcion" placeholder="Detallá qué ocurre…"></textarea>
 
     <label for="direccion">Dirección:</label>
-    <input id="direccion" type="text" placeholder="Se autocompleta al elegir ubicación"/>
+    <input id="direccion" type="text" placeholder="Se autocompleta al elegir ubicación" />
 
     <!-- Número municipal -->
     <label for="nroMunicipalidad">N° de reclamo de la Municipalidad de Roldán (opcional):</label>
-    <input id="nroMunicipalidad" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Ej: 123456" />
+    <input
+      id="nroMunicipalidad"
+      type="text"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      placeholder="Ej: 123456"
+    />
 
     <div class="form-actions">
       <button id="btnSubmit" type="submit">Guardar reporte</button>
@@ -99,9 +107,6 @@
     </div>
   </form>
 
-  <!-- Scripts propios -->
-  <script src="firebase.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
-``
