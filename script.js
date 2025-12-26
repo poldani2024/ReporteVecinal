@@ -1,18 +1,61 @@
 
-// script.js
-// Estado global
+// --- Estado global ---
 let currentUser = null;
 let map = null;
-let selectedLatLng = null;       // se setea con "📍 Usar mi ubicación" o al hacer click en el mapa
+let selectedLatLng = null;       // se setea con click en mapa o "📍 Usar mi ubicación"
+let tempMarker = null;
 let markersByDoc = new Map();    // docId -> marker
-let editingDocId = null;         // docId en edición (si corresponde)
-let unsubReports = null;         // desuscribir snapshot cuando haga falta
+let editingDocId = null;         // docId en edición
+let unsubReports = null;         // desuscribir snapshot
 
 // Colores de marcadores
-const COLOR_MIO_BORDE = '#7B1FA2';   // Violeta borde
+const COLOR_MIO_BORDE = '#7B1FA2';   // Violeta borde (tus reclamos)
 const COLOR_MIO_FILL  = '#BA68C8';   // Violeta fill
-const COLOR_OTRO_BORDE = '#1976D2';  // Azul borde
+const COLOR_OTRO_BORDE = '#1976D2';  // Azul borde (de otros)
 const COLOR_OTRO_FILL  = '#64B5F6';  // Azul fill
+
+// --- ZONA PERMITIDA ---
+// Reemplazá este polígono por el que usabas antes (formato [ [lat, lng], ... ]).
+// Si queda vacío, se permite todo y aparece un aviso informativo.
+const ALLOWED_ZONE_POLYGON = [
+  // EJEMPLO (NO ES TU POLÍGONO REAL): cuatro puntos formando un rectángulo de demo
+  // [-32.94, -60.98],
+  // [-32.94, -60.84],
+  // [-32.84, -60.84],
+  // [-32.84, -60.98],
+];
+
+// Dibuja el polígono en el mapa (si está definido)
+function drawAllowedZone() {
+  if (ALLOWED_ZONE_POLYGON.length >= 3) {
+    L.polygon(ALLOWED_ZONE_POLYGON, {
+      color: '#4CAF50',
+      weight: 2,
+      fillColor: '#A5D6A7',
+      fillOpacity: 0.15
+    }).addTo(map).bindPopup('Zona habilitada por la vecinal');
+  }
+}
+
+// Utilidad: punto en polígono (ray casting)
+function isPointInPolygon(latlng, polygonLatLngs) {
+  if (!polygonLatLngs || polygonLatLngs.length < 3) return true; // sin polígono => permitido
+  const x = latlng.lat, y = latlng.lng;
+  let inside = false;
+  for (let i = 0, j = polygonLatLngs.length - 1; i < polygonLatLngs.length; j = i++) {
+    const xi = polygonLatLngs[i][0], yi = polygonLatLngs[i][1];
+    const xj = polygonLatLngs[j][0], yj = polygonLatLngs[j][1];
+    const intersect = ((yi > y) !== (yj > y)) &&
+                      (x < (xj - xi) * (y - yi) / (yj - yi + 0.0000001) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Mostrar/ocultar mensaje de zona
+function setZoneWarning(visible) {
+  document.getElementById('zone-warning').classList.toggle('hidden', !visible);
+}
 
 // --- Inicialización ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,7 +68,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   const editId = params.get('edit');
   if (editId) {
-    // Esperamos a que cargue la suscripción y luego abrimos cuando llegue ese doc
     window.__pendingEditId = editId;
   }
 });
@@ -53,27 +95,40 @@ function initAuthUI() {
     userInfo.textContent = user ? (user.displayName || user.email) : '';
     linkAdmin.classList.toggle('hidden', !user); // mostrar admin si logueado
 
-    // Suscribir a reclamos cuando hay usuario (o igual, todos pueden ver)
+    // Suscribir a reclamos (todos pueden ver)
     subscribeReports();
   });
 }
 
 // --- Leaflet ---
 function initMap() {
-  map = L.map('map').setView([-32.9, -60.9], 12); // centro aproximado de zona Rosario/Roldán
+  map = L.map('map').setView([-32.9, -60.9], 12); // Centro aproximado
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
-  // Permitir seleccionar punto con click (opcional)
-  map.on('click', (ev) => {
-    selectedLatLng = ev.latlng;
-    showForm(); // muestra el formulario si el user está logueado
-    placeTempMarker(ev.latlng);
+  drawAllowedZone();
+
+  // Click en mapa: seleccionar ubicación + autocompletar dirección + control de zona
+  map.on('click', async (ev) => {
+    const latlng = ev.latlng;
+    const inside = isPointInPolygon(latlng, ALLOWED_ZONE_POLYGON);
+    setZoneWarning(!inside);
+
+    if (!inside) {
+      // fuera de zona -> no setear selección
+      if (tempMarker) tempMarker.remove();
+      tempMarker = null;
+      return;
+    }
+
+    selectedLatLng = latlng;
+    placeTempMarker(latlng);
+    await fillAddressFromLatLng(latlng); // autocompletar dirección
+    showForm(); // mostrar formulario si está logueado
   });
 }
 
-let tempMarker = null;
 function placeTempMarker(latlng) {
   if (tempMarker) tempMarker.remove();
   tempMarker = L.circleMarker(latlng, {
@@ -90,17 +145,42 @@ function initLocationButton() {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        selectedLatLng = { lat: latitude, lng: longitude };
-        map.setView([latitude, longitude], 16);
-        placeTempMarker(selectedLatLng);
+      async (pos) => {
+        const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const inside = isPointInPolygon(latlng, ALLOWED_ZONE_POLYGON);
+        setZoneWarning(!inside);
+        if (!inside) {
+          alert('Tu ubicación está fuera de la zona permitida.');
+          return;
+        }
+
+        selectedLatLng = latlng;
+        map.setView([latlng.lat, latlng.lng], 16);
+        placeTempMarker(latlng);
+        await fillAddressFromLatLng(latlng); // autocompletar dirección
         showForm();
       },
       () => alert('No se pudo obtener tu ubicación.'),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   });
+}
+
+// --- Geocodificación inversa (llenar Dirección) ---
+async function fillAddressFromLatLng(latlng) {
+  try {
+    // Nominatim (OSM) — respuesta en español
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}&accept-language=es&zoom=18`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('Geocoder fuera de servicio');
+    const data = await res.json();
+    const address = data.display_name || '';
+    document.getElementById('direccion').value = address;
+  } catch (e) {
+    console.warn('Reverse geocoding falló:', e);
+    // Fallback: ponemos lat/lng
+    document.getElementById('direccion').value = `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+  }
 }
 
 // --- Suscripción a la colección de reclamos ---
@@ -115,7 +195,6 @@ function subscribeReports() {
   unsubReports = db.collection('reclamos')
     .orderBy('createdAt', 'desc')
     .onSnapshot((snap) => {
-      // Actualizar markers según cambios
       snap.docChanges().forEach((change) => {
         const doc = change.doc;
         const data = doc.data();
@@ -127,7 +206,6 @@ function subscribeReports() {
           return;
         }
 
-        // Alta o modificación
         const lat = data.lat, lng = data.lng;
         if (typeof lat !== 'number' || typeof lng !== 'number') return;
 
@@ -143,9 +221,13 @@ function subscribeReports() {
           .addTo(map)
           .bindPopup(popupHtml(data));
 
-        // Si es mío, al click habilita edición
+        // Si es mío, al click habilita edición + centra + autocompleta dirección
         if (isMine) {
-          marker.on('click', () => fillFormForEdit(docId, data));
+          marker.on('click', async () => {
+            fillFormForEdit(docId, data);
+            selectedLatLng = { lat, lng };
+            await fillAddressFromLatLng(selectedLatLng);
+          });
         }
 
         markersByDoc.set(docId, marker);
@@ -153,6 +235,8 @@ function subscribeReports() {
         // Si venimos desde admin con ?edit=docId, abrir cuando aparece
         if (window.__pendingEditId && window.__pendingEditId === docId) {
           fillFormForEdit(docId, data);
+          selectedLatLng = { lat, lng };
+          fillAddressFromLatLng(selectedLatLng);
           window.__pendingEditId = null;
         }
       });
@@ -187,6 +271,7 @@ function initFormHandlers() {
   btnCancelEdit.addEventListener('click', () => {
     resetEditState();
     form.reset();
+    document.getElementById('form-title').textContent = 'Nuevo reporte';
   });
 }
 
@@ -208,12 +293,14 @@ function fillFormForEdit(docId, data) {
   const btnSubmit = document.getElementById('btnSubmit');
   btnSubmit.textContent = 'Actualizar reporte';
   document.getElementById('btnCancelEdit').classList.remove('hidden');
+  document.getElementById('form-title').textContent = 'Editar mi reporte';
 
   editingDocId = docId;
 
   // centrar mapa en el reclamo
   if (typeof map !== 'undefined' && typeof data.lat === 'number' && typeof data.lng === 'number') {
     map.setView([data.lat, data.lng], 17);
+    placeTempMarker({ lat: data.lat, lng: data.lng });
   }
 }
 
@@ -245,9 +332,14 @@ async function onSubmitReport(ev) {
 
   try {
     if (!editingDocId) {
-      // ALTA: requiere coordenadas
+      // ALTA: requiere coordenadas dentro de la zona
       if (!selectedLatLng || typeof selectedLatLng.lat !== 'number' || typeof selectedLatLng.lng !== 'number') {
         alert('Seleccioná ubicación (click en el mapa o "📍 Usar mi ubicación").');
+        return;
+      }
+      const inside = isPointInPolygon(selectedLatLng, ALLOWED_ZONE_POLYGON);
+      if (!inside) {
+        alert('La ubicación está fuera de la zona permitida.');
         return;
       }
 
@@ -267,8 +359,9 @@ async function onSubmitReport(ev) {
       await db.collection('reclamos').add(payload);
       alert('¡Reporte guardado!');
       document.getElementById('report-form').reset();
+      setZoneWarning(false);
     } else {
-      // EDICIÓN: actualiza campos textuales y, si el usuario marcó una nueva ubicación, actualiza lat/lng
+      // EDICIÓN: campos textuales + (opcional) nueva ubicación si está dentro de la zona
       const updateData = {
         tipo,
         descripcion,
@@ -278,6 +371,11 @@ async function onSubmitReport(ev) {
       };
 
       if (selectedLatLng && typeof selectedLatLng.lat === 'number' && typeof selectedLatLng.lng === 'number') {
+        const inside = isPointInPolygon(selectedLatLng, ALLOWED_ZONE_POLYGON);
+        if (!inside) {
+          alert('La nueva ubicación está fuera de la zona permitida.');
+          return;
+        }
         updateData.lat = selectedLatLng.lat;
         updateData.lng = selectedLatLng.lng;
       }
@@ -286,6 +384,7 @@ async function onSubmitReport(ev) {
       alert('¡Reporte actualizado!');
       resetEditState();
       document.getElementById('report-form').reset();
+      setZoneWarning(false);
     }
   } catch (err) {
     console.error(err);
