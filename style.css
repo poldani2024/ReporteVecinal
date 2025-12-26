@@ -321,26 +321,44 @@ img, svg {
 }
 
 
-/* ---------------------------------------------------
-   Callout municipal (aviso destacado) — ROJO/NARANJA
---------------------------------------------------- */
+
+/* --- Callout municipal (aviso destacado) — ROJO/NARANJA (fix mobile overflow) --- */
 .callout {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 16px;
   align-items: start;
-  padding: 18px 20px;
 
-  /* NUEVO esquema de color */
-  border: 2px solid #C62828;        /* rojo intenso del marco */
-  background: #FFE0B2;              /* naranja claro con tinte rojizo */
-  /* Si lo querés más rojizo: #FFCCBC (naranja rojizo suave) */
-
-  border-radius: 16px;               /* más redondeado */
+  /* Color / estilo */
+  border: 2px solid #C62828;
+  background: #FFE0B2;
+  border-radius: 16px;
   box-shadow: 0 8px 20px rgba(198, 40, 40, 0.12);
-  margin: 16px auto 28px;
-  width: min(100% - 32px, 1000px);
+
+  /* Mobile-first: usar ancho total y márgenes controlados */
+  width: 100%;
+  padding: 16px;           /* padding parejo */
+  margin: 12px 12px 20px;  /* margen lateral fijo; evita sumas > 100% */
+  box-sizing: border-box;  /* incluye borde/padding en el cálculo del ancho */
 }
+
+/* En pantallas más grandes, aplicamos un ancho “bonito” sin desbordar */
+@media (min-width: 680px) {
+  .callout {
+    margin: 16px auto 28px;
+    /* o bien: max-width + padding controlado */
+    max-width: 1000px;
+    width: calc(100% - 32px); /* respeta 16px laterales combinados */
+  }
+}
+
+/* Asegurar quiebre de texto/URLs largas dentro del callout */
+.callout__content p,
+.callout__link {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 
 .callout__icon {
   display: grid;
