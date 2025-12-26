@@ -1,4 +1,33 @@
 
+/* style.css */
+html, body {
+  font-family: 'Montserrat', Verdana, sans-serif;
+  font-size: 16px;       /* opcional */
+  line-height: 1.5;      /* opcional */
+  color: #222;           /* opcional */
+}
+
+/* Encabezados más “limpios” */
+h1, h2, h3 {
+  font-weight: 700;
+  letter-spacing: 0.3px; /* opcional */
+}
+
+/* Botones y tabla, heredan la misma fuente (por si tenían overrides) */
+button,
+.data-table,
+.data-table th,
+.data-table td {
+  font-family: inherit;
+}
+
+/* Leaflet (algunos temas fijan otra fuente); forzamos herencia */
+.leaflet-container,
+.leaflet-popup-content,
+.leaflet-tooltip {
+  font-family: inherit;
+}
+
 /* --- Tabla moderna --- */
 .data-table {
   width: 100%;
