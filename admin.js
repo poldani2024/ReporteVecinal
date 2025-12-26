@@ -1,41 +1,65 @@
 
 // admin.js
 
-// Si tu firebase.js NO define auth/db, descomentá estas dos líneas:
+const tbody         = document.getElementById('tbody-reportes');
+const adminUserEl   = document.getElementById('adminUserInfo');
+const btnExportCsv  = document.getElementById('btnExportCsv');
+
+let unsub = null;
+let currentUser = null;
+let currentRole = 'vecino';
+let cacheRowsForExport = []; // guardamos los datos para exportar
+
+// Si firebase.js NO define auth/db, descomentá:
 // const auth = firebase.auth();
 // const db   = firebase.firestore();
-
-const tbody       = document.getElementById('tbody-reportes');
-const adminUserEl = document.getElementById('adminUserInfo');
-
-// Configuración: qué ve un vecino (si no es admin)
-const SHOW_ONLY_OWN_FOR_VECINO = true; // true: sólo sus reportes; false: todos (recomendado true)
-let unsub = null;
 
 // Render de una fila
 function renderRow(doc) {
   const d = doc.data();
+
+  const fechaRegDate = d.fecha?.toDate ? d.fecha.toDate() : null;
+  const fechaModDate = d.updatedAt?.toDate ? d.updatedAt.toDate() : null;
+
+  const fechaReg = fechaRegDate ? formatDate(fechaRegDate) : '–';
+  const horaReg  = fechaRegDate ? formatTime(fechaRegDate) : '–';
+  const fechaMod = fechaModDate ? formatDate(fechaModDate) : '–';
+  const horaMod  = fechaModDate ? formatTime(fechaModDate) : '–';
+
   const tr = document.createElement('tr');
-
-  const fechaStr = d.fecha?.toDate ? d.fecha.toDate().toLocaleString() : '-';
-  const municipalStr = d.municipalNumber ? String(d.municipalNumber) : '';
-
   tr.innerHTML = `
     <td>${escapeHtml(d.tipo || '')}</td>
     <td>${escapeHtml(d.direccion || '')}</td>
     <td>${escapeHtml(d.descripcion || '')}</td>
     <td>${escapeHtml(d.usuarioNombre || '')}</td>
     <td>${escapeHtml(d.estado || 'Nuevo')}</td>
-    <td>
-      <button class="btn-link" data-id="${doc.id}" title="Editar en mapa">Editar en mapa</button>
-    </td>
+    <td>${escapeHtml(d.municipalNumber || '')}</td>
+    <td>${fechaReg}</td>
+    <td>${horaReg}</td>
+    <td>${fechaMod}</td>
+    <td>${horaMod}</td>
+    <td><button class="btn-link" title="Editar en mapa">Editar en mapa</button></td>
   `;
 
   // Acción: editar en mapa
-  tr.querySelector('button[data-id]').addEventListener('click', () => {
+  tr.querySelector('.btn-link').addEventListener('click', () => {
     const url = new URL('index.html', window.location.href);
     url.searchParams.set('edit', doc.id);
     window.location.href = url.toString();
+  });
+
+  // Guardamos en cache para exportación
+  cacheRowsForExport.push({
+    tipo: d.tipo || '',
+    direccion: d.direccion || '',
+    descripcion: d.descripcion || '',
+    vecino: d.usuarioNombre || '',
+    estado: d.estado || 'Nuevo',
+    nMunicipal: d.municipalNumber || '',
+    fechaRegistro: fechaReg,
+    horaRegistro: horaReg,
+    fechaModificacion: fechaMod,
+    horaModificacion: horaMod,
   });
 
   return tr;
@@ -47,7 +71,8 @@ function subscribeReportes({ onlyMine = false, uid = null }) {
     unsub();
     unsub = null;
   }
-  tbody.innerHTML = '<tr><td colspan="6">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="11">Cargando…</td></tr>';
+  cacheRowsForExport = [];
 
   let query = db.collection('reportes').orderBy('fecha', 'desc');
 
@@ -59,27 +84,32 @@ function subscribeReportes({ onlyMine = false, uid = null }) {
 
   unsub = query.onSnapshot((snap) => {
     tbody.innerHTML = '';
+    cacheRowsForExport = [];
+
     if (snap.empty) {
-      tbody.innerHTML = '<tr><td colspan="6">Sin reportes para mostrar.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11">Sin reportes para mostrar.</td></tr>';
       return;
     }
+
     snap.forEach((doc) => {
       tbody.appendChild(renderRow(doc));
     });
   }, (err) => {
     console.error(err);
-    tbody.innerHTML = `<tr><td colspan="6">Error al cargar: ${escapeHtml(err.message || err.code || 'desconocido')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11">Error al cargar: ${escapeHtml(err.message || err.code || 'desconocido')}</td></tr>`;
     if (err.code === 'permission-denied') {
-      tbody.innerHTML = `<tr><td colspan="6">Permiso denegado. Verificá tus reglas de Firestore y que estés autenticado.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11">Permiso denegado. Verificá reglas de Firestore y autenticación.</td></tr>`;
     }
   });
 }
 
-// Autenticación y control de rol
+// Autenticación y rol
 firebase.auth().onAuthStateChanged(async (user) => {
+  currentUser = user || null;
+
   if (!user) {
     adminUserEl.textContent = 'No autenticado. Iniciá sesión desde el mapa y luego ingresá al panel.';
-    tbody.innerHTML = '<tr><td colspan="6">No autenticado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11">No autenticado</td></tr>';
     return;
   }
 
@@ -87,14 +117,14 @@ firebase.auth().onAuthStateChanged(async (user) => {
 
   try {
     const userDoc = await db.collection('users').doc(user.uid).get();
-    const rol = userDoc.exists ? (userDoc.data().rol || 'vecino') : 'vecino';
+    currentRole = userDoc.exists ? (userDoc.data().rol || 'vecino') : 'vecino';
 
-    if (rol === 'admin') {
+    if (currentRole === 'admin') {
       // Admin ve todos los reportes
       subscribeReportes({ onlyMine: false, uid: user.uid });
     } else {
-      // Vecino: ver sus propios reportes (configurable)
-      subscribeReportes({ onlyMine: SHOW_ONLY_OWN_FOR_VECINO, uid: user.uid });
+      // Vecino: sólo los propios (configurable)
+      subscribeReportes({ onlyMine: true, uid: user.uid });
     }
   } catch (e) {
     console.error('Error leyendo rol:', e);
@@ -104,7 +134,60 @@ firebase.auth().onAuthStateChanged(async (user) => {
   }
 });
 
-// Utilidad para escapar HTML
+// --- Exportar a CSV (Excel-friendly) ---
+btnExportCsv.addEventListener('click', () => {
+  if (!cacheRowsForExport.length) {
+    alert('No hay datos para exportar.');
+    return;
+  }
+
+  // Armamos encabezados
+  const headers = [
+    'Tipo','Dirección','Descripción','Vecino','Estado',
+    'N° municipal','Fecha registro','Hora registro',
+    'Fecha modificación','Hora modificación'
+  ];
+
+  // Generamos CSV (separador coma, Excel lo abre bien)
+  const lines = [];
+  lines.push(headers.join(','));
+
+  cacheRowsForExport.forEach(row => {
+    const vals = [
+      row.tipo, row.direccion, row.descripcion, row.vecino, row.estado,
+      row.nMunicipal, row.fechaRegistro, row.horaRegistro,
+      row.fechaModificacion, row.horaModificacion
+    ].map(csvEscape);
+    lines.push(vals.join(','));
+  });
+
+  const csv = lines.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `reportes_${formatFileTimestamp(new Date())}.csv`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
+
+// --- Utilidades ---
+function formatDate(d) {
+  // Rosario (Argentina) -> es-AR
+  return d.toLocaleDateString('es-AR');
+}
+
+function formatTime(d) {
+  return d.toLocaleTimeString('es-AR', { hour12: false });
+}
+
+function formatFileTimestamp(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+}
+
 function escapeHtml(str) {
   return String(str)
     .replaceAll('&', '&amp;')
@@ -112,4 +195,14 @@ function escapeHtml(str) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function csvEscape(val) {
+  if (val == null) return '';
+  const s = String(val);
+  // Si contiene comillas, coma o salto de línea, envolver en comillas dobles y escapar comillas internas
+  if (/[",\r\n]/.test(s)) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
 }
