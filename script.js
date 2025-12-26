@@ -75,10 +75,10 @@ auth.onAuthStateChanged(async (user) => {
 // BARRIO — COORDENADAS EXACTAS
 // --------------------------------------------
 const barrioCoords = [
-  [-32.894457508492049, -60.86895402183375],   // Castelli y Diaguitas
-  [-32.895413196611888, -60.86354341082229],   // Castelli y San Sebastián
-  [-32.906799262900090, -60.86634683607743],   // San Sebastián y Padre Oldani
-  [-32.905812966717276, -60.871972911350176]   // Padre Oldani y Diaguitas
+  [-32.894457508492049, -60.86895402183375],
+  [-32.895413196611888, -60.86354341082229],
+  [-32.906799262900090, -60.86634683607743],
+  [-32.905812966717276, -60.871972911350176]
 ];
 
 // --------------------------------------------
@@ -151,7 +151,7 @@ function makeCircleMarker(lat, lng, isMine) {
 }
 
 // --------------------------------------------
-// Utilidad: enfocar el primer campo del formulario (y hacer scroll)
+// Foco en el primer campo del formulario
 // --------------------------------------------
 function focusFirstFormField() {
   const form = document.getElementById('report-form');
@@ -257,7 +257,10 @@ map.on("click", async (e) => {
   abrirAlta();
   focusFirstFormField();
 });
-// Utilidad: escapar HTML para popups (corregida y robusta)
+
+// --------------------------------------------
+// Utilidad: escapar HTML (CORRECTA)
+// --------------------------------------------
 function escapeHtml(input) {
   const str = String(input ?? "");
   return str
@@ -267,6 +270,7 @@ function escapeHtml(input) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
 // --------------------------------------------
 // UBICACIÓN ACTUAL (GPS) — zona + dirección
 // --------------------------------------------
@@ -301,6 +305,7 @@ document.getElementById("btn-ubicacion").onclick = () => {
     abrirAlta();
     focusFirstFormField();
   }, () => alert("No se pudo obtener tu ubicación."), { enableHighAccuracy: true, timeout: 10000 });
+};  // 👈 cierre correcto del onclick
 
 // --------------------------------------------
 // REVERSE GEOCODING (Nominatim)
@@ -494,4 +499,4 @@ if (btnCancelEdit) {
     setFormReadonly(false);
   };
 }
-
+``
