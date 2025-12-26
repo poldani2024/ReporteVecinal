@@ -1,109 +1,115 @@
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Panel de Administración</title>
+// admin.js
 
-  <link rel="stylesheet" href="style.css" />
+// Si tu firebase.js NO define auth/db, descomentá estas dos líneas:
+// const auth = firebase.auth();
+// const db   = firebase.firestore();
 
-  <!-- Firebase (Compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-</head>
-<body>
-  <header class="header">
-    <h1 class="title">Panel de Administración</h1>
-    <nav class="admin-nav">
-      <a href="index.html">← Volver al mapa</a>
-    </nav>
-    <div id="admin-auth" class="login-area">
-      <button id="btnLogin">Iniciar sesión con Google</button>
-      <button id="btnLogout" class="hidden">Cerrar sesión</button>
-      <span id="userInfo"></span>
-    </div>
-  </header>
+const tbody       = document.getElementById('tbody-reportes');
+const adminUserEl = document.getElementById('adminUserInfo');
 
-  <main class="container">
-    <section class="card">
-      <h2>Listado de reclamos</h2>
-      <p class="muted">Se muestra el total; los tuyos aparecen marcados como “Mío”.</p>
+// Configuración: qué ve un vecino (si no es admin)
+const SHOW_ONLY_OWN_FOR_VECINO = true; // true: sólo sus reportes; false: todos (recomendado true)
+let unsub = null;
 
-      <div class="table-responsive">
-        <table class="table" id="tablaReclamos">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Tipo</th>
-              <th>Descripción</th>
-              <th>Dirección</th>
-              <th>N° municipal</th>
-              <th>Mío</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tbodyReclamos"><tr><td colspan="7">Cargando…</td></tr></tbody>
-        </table>
-      </div>
-    </section>
-  </main>
+// Render de una fila
+function renderRow(doc) {
+  const d = doc.data();
+  const tr = document.createElement('tr');
 
-  <script src="firebase.js"></script>
-  <script>
-    // Admin listado simple (sin edición aquí; la edición se hace en el mapa)
-    let currentUser = null;
+  const fechaStr = d.fecha?.toDate ? d.fecha.toDate().toLocaleString() : '-';
+  const municipalStr = d.municipalNumber ? String(d.municipalNumber) : '';
 
-    firebase.auth().onAuthStateChanged((user) => {
-      currentUser = user || null;
-      document.getElementById('btnLogin').classList.toggle('hidden', !!user);
-      document.getElementById('btnLogout').classList.toggle('hidden', !user);
-      document.getElementById('userInfo').textContent = user ? (user.displayName || user.email) : '';
+  tr.innerHTML = `
+    <td>${escapeHtml(d.tipo || '')}</td>
+    <td>${escapeHtml(d.direccion || '')}</td>
+    <td>${escapeHtml(d.descripcion || '')}</td>
+    <td>${escapeHtml(d.usuarioNombre || '')}</td>
+    <td>${escapeHtml(d.estado || 'Nuevo')}</td>
+    <td>
+      <button class="btn-link" data-id="${doc.id}" title="Editar en mapa">Editar en mapa</button>
+    </td>
+  `;
 
-      if (user) cargarTabla();
-    });
+  // Acción: editar en mapa
+  tr.querySelector('button[data-id]').addEventListener('click', () => {
+    const url = new URL('index.html', window.location.href);
+    url.searchParams.set('edit', doc.id);
+    window.location.href = url.toString();
+  });
 
-    document.getElementById('btnLogin').addEventListener('click', async () => {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      await firebase.auth().signInWithPopup(provider);
-    });
+  return tr;
+}
 
-    document.getElementById('btnLogout').addEventListener('click', async () => {
-      await firebase.auth().signOut();
-      document.getElementById('tbodyReclamos').innerHTML = '<tr><td colspan="7">Cargando…</td></tr>';
-    });
+// Suscripción en tiempo real a la colección "reportes"
+function subscribeReportes({ onlyMine = false, uid = null }) {
+  if (typeof unsub === 'function') {
+    unsub();
+    unsub = null;
+  }
+  tbody.innerHTML = '<tr><td colspan="6">Cargando…</td></tr>';
 
-    function cargarTabla() {
-      const db = firebase.firestore();
-      db.collection('reclamos').orderBy('createdAt', 'desc').onSnapshot((snap) => {
-        const tbody = document.getElementById('tbodyReclamos');
-        tbody.innerHTML = '';
-        snap.forEach((doc) => {
-          const d = doc.data();
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString() : '-'}</td>
-            <td>${d.tipo || ''}</td>
-            <td>${d.descripcion || ''}</td>
-            <td>${d.direccion || ''}</td>
-            <td>${d.municipalNumber || ''}</td>
-            <td>${currentUser && d.userId === currentUser.uid ? 'Sí' : 'No'}</td>
-            <td>
-              <button data-id="${doc.id}" class="btn-link" onclick="irAEditar('${doc.id}')">Editar en mapa</button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-      });
+  let query = db.collection('reportes').orderBy('fecha', 'desc');
+
+  if (onlyMine && uid) {
+    query = db.collection('reportes')
+      .where('usuarioId', '==', uid)
+      .orderBy('fecha', 'desc');
+  }
+
+  unsub = query.onSnapshot((snap) => {
+    tbody.innerHTML = '';
+    if (snap.empty) {
+      tbody.innerHTML = '<tr><td colspan="6">Sin reportes para mostrar.</td></tr>';
+      return;
     }
-
-    // Tip: llevamos el docId por queryString y el index se encarga de abrirlo
-    function irAEditar(docId) {
-      const url = new URL('index.html', window.location.href);
-      url.searchParams.set('edit', docId);
-      window.location.href = url.toString();
+    snap.forEach((doc) => {
+      tbody.appendChild(renderRow(doc));
+    });
+  }, (err) => {
+    console.error(err);
+    tbody.innerHTML = `<tr><td colspan="6">Error al cargar: ${escapeHtml(err.message || err.code || 'desconocido')}</td></tr>`;
+    if (err.code === 'permission-denied') {
+      tbody.innerHTML = `<tr><td colspan="6">Permiso denegado. Verificá tus reglas de Firestore y que estés autenticado.</td></tr>`;
     }
-  </script>
-</body>
-</html>
+  });
+}
+
+// Autenticación y control de rol
+firebase.auth().onAuthStateChanged(async (user) => {
+  if (!user) {
+    adminUserEl.textContent = 'No autenticado. Iniciá sesión desde el mapa y luego ingresá al panel.';
+    tbody.innerHTML = '<tr><td colspan="6">No autenticado</td></tr>';
+    return;
+  }
+
+  adminUserEl.textContent = `Conectado como: ${user.displayName || user.email}`;
+
+  try {
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    const rol = userDoc.exists ? (userDoc.data().rol || 'vecino') : 'vecino';
+
+    if (rol === 'admin') {
+      // Admin ve todos los reportes
+      subscribeReportes({ onlyMine: false, uid: user.uid });
+    } else {
+      // Vecino: ver sus propios reportes (configurable)
+      subscribeReportes({ onlyMine: SHOW_ONLY_OWN_FOR_VECINO, uid: user.uid });
+    }
+  } catch (e) {
+    console.error('Error leyendo rol:', e);
+    adminUserEl.textContent += ' (Error leyendo rol)';
+    // Fallback: mostrar sólo los propios
+    subscribeReportes({ onlyMine: true, uid: user.uid });
+  }
+});
+
+// Utilidad para escapar HTML
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
