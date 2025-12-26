@@ -289,7 +289,6 @@ img, svg {
 
 /* Tabla con líneas más definidas */
 .data-table {
-  width: 100%;
   border-collapse: collapse; /* Cambiamos a collapse para bordes continuos */
   background: #fff;
   font-size: 14px;
