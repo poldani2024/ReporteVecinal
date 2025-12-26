@@ -487,14 +487,15 @@ if (btnCancelEdit) {
   };
 }
 
-// --------------------------------------------
-// Utilidad: escapar HTML para popups (corregida)
-// --------------------------------------------
-function escapeHtml(str) {
-  return String(str)
+
+// Utilidad: escapar HTML para popups (corregida y robusta)
+function escapeHtml(input) {
+  const str = String(input ?? "");
+  return str
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
