@@ -11,3 +11,13 @@
     "cors": "^2.8.5"
   }
 }
+
+{
+  "hosting": {
+    "public": ".",
+    "rewrites": [
+      { "source": "/api/enviarPaso1Muni", "function": "enviarPaso1Muni" }
+    ]
+  },
+  "functions": { "source": "functions" }
+}
