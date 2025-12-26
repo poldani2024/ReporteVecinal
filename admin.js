@@ -81,63 +81,7 @@ function renderRow(doc) {
   tdFMod.textContent      = fechaMod;
   tdHMod.textContent      = horaMod;
 
-  // --- Botón Paso 1 (Playwright) ---
-  const btnSendStep1 = document.createElement('button');
-  btnSendStep1.className = 'btn-primary';
-  btnSendStep1.textContent = 'Municipalidad – Paso 1';
-  btnSendStep1.title = 'Seleccionar “Mantenimiento de Calles de Tierra”, Detalles y Siguiente';
-  btnSendStep1.addEventListener('click', async () => {
-    const detalle = prompt('Detalle del reclamo (Municipalidad – Paso 1):', d.descripcion || '');
-    if (!detalle) return;
-    try {
-      const resp = await fetch(FN_URL_STEP1, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ detalle })
-      });
-      const ct = resp.headers.get('content-type') || '';
-      if (!resp.ok) {
-        const body = ct.includes('application/json') ? await resp.json() : await resp.text();
-        throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${typeof body === 'string' ? body.slice(0, 200) : JSON.stringify(body)}`);
-      }
-      const data = await resp.json();
-      alert(data.ok ? 'Paso 1 ejecutado correctamente.' : `Fallo: ${data.error || ''}`);
-    } catch (e) {
-      console.error(e);
-      alert('Error en Paso 1: ' + (e?.message || ''));
-    }
-  });
-
-  // --- Botón POST directo (opcional) ---
-  const btnSendFull = document.createElement('button');
-  btnSendFull.className = 'btn-secondary';
-  btnSendFull.textContent = 'Enviar a Municipalidad (POST)';
-  btnSendFull.title = 'Enviar formulario completo y guardar N° municipal';
-  btnSendFull.addEventListener('click', async () => {
-    const seguro = confirm('¿Enviar este reporte a la Municipalidad (POST directo)?');
-    if (!seguro) return;
-    try {
-      const user    = firebase.auth().currentUser;
-      const idToken = user ? await user.getIdToken() : null; // si tu función requiere autorización
-      const url     = `${FN_URL_FULL}?docId=${encodeURIComponent(doc.id)}`;
-      const resp    = await fetch(url, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json', ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) }
-      });
-      const ct = resp.headers.get('content-type') || '';
-      if (!resp.ok) {
-        const body = ct.includes('application/json') ? await resp.json() : await resp.text();
-        throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${typeof body === 'string' ? body.slice(0, 200) : JSON.stringify(body)}`);
-      }
-      const data = await resp.json();
-      alert(data.ok && data.nroMunicipal
-        ? `Enviado. N° municipal: ${data.nroMunicipal}`
-        : `No se obtuvo N° municipal: ${data.error || ''}`);
-    } catch (e) {
-      console.error(e);
-      alert('Error al enviar (POST): ' + (e?.message || ''));
-    }
-  });
+  
 
   // --- Eliminar ---
   const btnDel = document.createElement('button');
