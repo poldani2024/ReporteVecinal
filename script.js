@@ -1,247 +1,127 @@
 
-// --- Estado global ---
-let currentUser = null;
-let map = null;
-let selectedLatLng = null;       // se setea con click en mapa o "📍 Usar mi ubicación"
-let tempMarker = null;
-let markersByDoc = new Map();    // docId -> marker
-let editingDocId = null;         // docId en edición
-let unsubReports = null;         // desuscribir snapshot
+// --------------------------------------------
+// LOGIN GOOGLE
+// --------------------------------------------
+const btnLogin   = document.getElementById("btnLogin");
+const btnLogout  = document.getElementById("btnLogout");
+const userInfo   = document.getElementById("userInfo");
+const linkAdmin  = document.getElementById("link-admin");
 
-// Colores de marcadores
-const COLOR_MIO_BORDE = '#7B1FA2';   // Violeta borde (tus reclamos)
-const COLOR_MIO_FILL  = '#BA68C8';   // Violeta fill
-const COLOR_OTRO_BORDE = '#1976D2';  // Azul borde (de otros)
-const COLOR_OTRO_FILL  = '#64B5F6';  // Azul fill
+// Estado adicional
+let currentUser    = null;
+let editingDocId   = null;          // id del documento en edición (si corresponde)
+let selectedLatLng = null;          // lat/lng seleccionados (click mapa o GPS)
+let markerTemp     = null;          // marcador temporal para selección
+const markersByDoc = new Map();     // docId -> marker en el mapa
 
-// --- ZONA PERMITIDA ---
-// Reemplazá este polígono por el que usabas antes (formato [ [lat, lng], ... ]).
-// Si queda vacío, se permite todo y aparece un aviso informativo.
-const ALLOWED_ZONE_POLYGON = [
-  // EJEMPLO (NO ES TU POLÍGONO REAL): cuatro puntos formando un rectángulo de demo
-  [-32.894457508492049, -60.86895402183375],   // Castelli y Diaguitas
-  [-32.895413196611888, -60.86354341082229],  // Castelli y San Sebastián
-  [-32.906799262900090, -60.86634683607743],  // San Sebastián y Padre Oldani
-  [-32.905812966717276, -60.871972911350176]  // Padre Oldani y Diaguitas
-];
+btnLogin.onclick = () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(err => console.error(err));
+};
 
-// Dibuja el polígono en el mapa (si está definido)
-function drawAllowedZone() {
-  if (ALLOWED_ZONE_POLYGON.length >= 3) {
-    L.polygon(ALLOWED_ZONE_POLYGON, {
-      color: '#4CAF50',
-      weight: 2,
-      fillColor: '#A5D6A7',
-      fillOpacity: 0.15
-    }).addTo(map).bindPopup('Zona habilitada por la vecinal');
-  }
-}
+btnLogout.onclick = () => auth.signOut();
 
-// Utilidad: punto en polígono (ray casting)
-function isPointInPolygon(latlng, polygonLatLngs) {
-  if (!polygonLatLngs || polygonLatLngs.length < 3) return true; // sin polígono => permitido
-  const x = latlng.lat, y = latlng.lng;
-  let inside = false;
-  for (let i = 0, j = polygonLatLngs.length - 1; i < polygonLatLngs.length; j = i++) {
-    const xi = polygonLatLngs[i][0], yi = polygonLatLngs[i][1];
-    const xj = polygonLatLngs[j][0], yj = polygonLatLngs[j][1];
-    const intersect = ((yi > y) !== (yj > y)) &&
-                      (x < (xj - xi) * (y - yi) / (yj - yi + 0.0000001) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
+auth.onAuthStateChanged(async (user) => {
+  currentUser = user || null;
 
-// Mostrar/ocultar mensaje de zona
-function setZoneWarning(visible) {
-  document.getElementById('zone-warning').classList.toggle('hidden', !visible);
-}
+  if (user) {
+    userInfo.textContent = `Conectado como: ${user.displayName}`;
+    btnLogin.classList.add("hidden");
+    btnLogout.classList.remove("hidden");
 
-// --- Inicialización ---
-document.addEventListener('DOMContentLoaded', () => {
-  initAuthUI();
-  initMap();
-  initFormHandlers();
-  initLocationButton();
+    const userRef = db.collection("users").doc(user.uid);
+    const snap = await userRef.get();
 
-  // Si viene docId por query (desde admin), abrir edición
-  const params = new URLSearchParams(window.location.search);
-  const editId = params.get('edit');
-  if (editId) {
-    window.__pendingEditId = editId;
+    if (!snap.exists) {
+      await userRef.set({
+        nombre: user.displayName,
+        email: user.email,
+        rol: "vecino",
+        creado: new Date()
+      });
+    }
+
+    const data = (await userRef.get()).data();
+    linkAdmin.classList.toggle("hidden", data.rol !== "admin");
+  } else {
+    userInfo.textContent = "";
+    btnLogin.classList.remove("hidden");
+    btnLogout.classList.add("hidden");
+    linkAdmin.classList.add("hidden");
   }
 });
 
-// --- Auth ---
-function initAuthUI() {
-  const btnLogin = document.getElementById('btnLogin');
-  const btnLogout = document.getElementById('btnLogout');
-  const userInfo = document.getElementById('userInfo');
-  const linkAdmin = document.getElementById('link-admin');
+// --------------------------------------------
+// BARRIO — COORDENADAS EXACTAS (tu polígono)
+// --------------------------------------------
+const barrioCoords = [
+  [-32.894457508492049, -60.86895402183375],   // Castelli y Diaguitas
+  [-32.895413196611888, -60.86354341082229],   // Castelli y San Sebastián
+  [-32.906799262900090, -60.86634683607743],   // San Sebastián y Padre Oldani
+  [-32.905812966717276, -60.871972911350176]   // Padre Oldani y Diaguitas
+];
 
-  btnLogin.addEventListener('click', async () => {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    await firebase.auth().signInWithPopup(provider);
-  });
+// --------------------------------------------
+// FUNCIÓN PUNTO-EN-POLÍGONO (Ray Casting)
+// --------------------------------------------
+function puntoEnPoligono(lat, lng, poligono) {
+  let dentro = false;
+  const pts = poligono.getLatLngs()[0];
 
-  btnLogout.addEventListener('click', async () => {
-    await firebase.auth().signOut();
-  });
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].lat, yi = pts[i].lng;
+    const xj = pts[j].lat, yj = pts[j].lng;
 
-  firebase.auth().onAuthStateChanged((user) => {
-    currentUser = user || null;
-    btnLogin.classList.toggle('hidden', !!user);
-    btnLogout.classList.toggle('hidden', !user);
-    userInfo.textContent = user ? (user.displayName || user.email) : '';
-    linkAdmin.classList.toggle('hidden', !user); // mostrar admin si logueado
+    const intersecta = ((yi > lng) !== (yj > lng)) &&
+      (lat < (xj - xi) * (lng - yi) / (yj - yi + 1e-12) + xi);
 
-    // Suscribir a reclamos (todos pueden ver)
-    subscribeReports();
-  });
-}
-
-// --- Leaflet ---
-function initMap() {
-  map = L.map('map').setView([-32.9, -60.9], 12); // Centro aproximado
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
-
-  drawAllowedZone();
-
-  // Click en mapa: seleccionar ubicación + autocompletar dirección + control de zona
-  map.on('click', async (ev) => {
-    const latlng = ev.latlng;
-    const inside = isPointInPolygon(latlng, ALLOWED_ZONE_POLYGON);
-    setZoneWarning(!inside);
-
-    if (!inside) {
-      // fuera de zona -> no setear selección
-      if (tempMarker) tempMarker.remove();
-      tempMarker = null;
-      return;
-    }
-
-    selectedLatLng = latlng;
-    placeTempMarker(latlng);
-    await fillAddressFromLatLng(latlng); // autocompletar dirección
-    showForm(); // mostrar formulario si está logueado
-  });
-}
-
-function placeTempMarker(latlng) {
-  if (tempMarker) tempMarker.remove();
-  tempMarker = L.circleMarker(latlng, {
-    radius: 10, color: '#555', weight: 2, fillColor: '#999', fillOpacity: 0.5
-  }).addTo(map).bindPopup('Ubicación seleccionada para el reclamo').openPopup();
-}
-
-// --- Botón de ubicación ---
-function initLocationButton() {
-  const btnUbicacion = document.getElementById('btn-ubicacion');
-  btnUbicacion.addEventListener('click', () => {
-    if (!navigator.geolocation) {
-      alert('Tu navegador no soporta geolocalización.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const inside = isPointInPolygon(latlng, ALLOWED_ZONE_POLYGON);
-        setZoneWarning(!inside);
-        if (!inside) {
-          alert('Tu ubicación está fuera de la zona permitida.');
-          return;
-        }
-
-        selectedLatLng = latlng;
-        map.setView([latlng.lat, latlng.lng], 16);
-        placeTempMarker(latlng);
-        await fillAddressFromLatLng(latlng); // autocompletar dirección
-        showForm();
-      },
-      () => alert('No se pudo obtener tu ubicación.'),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  });
-}
-
-// --- Geocodificación inversa (llenar Dirección) ---
-async function fillAddressFromLatLng(latlng) {
-  try {
-    // Nominatim (OSM) — respuesta en español
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}&accept-language=es&zoom=18`;
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    if (!res.ok) throw new Error('Geocoder fuera de servicio');
-    const data = await res.json();
-    const address = data.display_name || '';
-    document.getElementById('direccion').value = address;
-  } catch (e) {
-    console.warn('Reverse geocoding falló:', e);
-    // Fallback: ponemos lat/lng
-    document.getElementById('direccion').value = `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+    if (intersecta) dentro = !dentro;
   }
+  return dentro;
 }
 
-// --- Suscripción a la colección de reclamos ---
-function subscribeReports() {
-  const db = firebase.firestore();
+// --------------------------------------------
+// MAPA CONFIGURADO
+// --------------------------------------------
+const barrioPolygon = L.polygon(barrioCoords, {
+  color: "green",
+  weight: 3,
+  fillColor: "#00FF00",
+  fillOpacity: 0.15
+});
 
-  // Desuscribir previo si existe
-  if (typeof unsubReports === 'function') {
-    unsubReports();
-  }
+const map = L.map("map", {
+  maxBounds: barrioPolygon.getBounds().pad(0.3),
+  maxBoundsViscosity: 1.0
+}).setView(barrioPolygon.getBounds().getCenter(), 16);
 
-  unsubReports = db.collection('reclamos')
-    .orderBy('createdAt', 'desc')
-    .onSnapshot((snap) => {
-      snap.docChanges().forEach((change) => {
-        const doc = change.doc;
-        const data = doc.data();
-        const docId = doc.id;
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "&copy; OpenStreetMap contributors"
+}).addTo(map);
 
-        if (change.type === 'removed') {
-          const mk = markersByDoc.get(docId);
-          if (mk) { mk.remove(); markersByDoc.delete(docId); }
-          return;
-        }
+barrioPolygon.addTo(map);
 
-        const lat = data.lat, lng = data.lng;
-        if (typeof lat !== 'number' || typeof lng !== 'number') return;
+// Sombreado fuera del barrio (como antes)
+const world = [
+  [90, -180],
+  [90, 180],
+  [-90, 180],
+  [-90, -180]
+];
+L.polygon([world, barrioCoords], {
+  color: "black",
+  fillOpacity: 0.5,
+  stroke: false
+}).addTo(map);
 
-        const isMine = currentUser && data.userId === currentUser.uid;
-
-        // remover marker previo si existe
-        if (markersByDoc.has(docId)) {
-          markersByDoc.get(docId).remove();
-          markersByDoc.delete(docId);
-        }
-
-        const marker = makeCircleMarker(lat, lng, isMine)
-          .addTo(map)
-          .bindPopup(popupHtml(data));
-
-        // Si es mío, al click habilita edición + centra + autocompleta dirección
-        if (isMine) {
-          marker.on('click', async () => {
-            fillFormForEdit(docId, data);
-            selectedLatLng = { lat, lng };
-            await fillAddressFromLatLng(selectedLatLng);
-          });
-        }
-
-        markersByDoc.set(docId, marker);
-
-        // Si venimos desde admin con ?edit=docId, abrir cuando aparece
-        if (window.__pendingEditId && window.__pendingEditId === docId) {
-          fillFormForEdit(docId, data);
-          selectedLatLng = { lat, lng };
-          fillAddressFromLatLng(selectedLatLng);
-          window.__pendingEditId = null;
-        }
-      });
-    });
-}
+// --------------------------------------------
+// COLORES DE MARCADORES (violeta propio, azul resto)
+// --------------------------------------------
+const COLOR_MIO_BORDE = "#7B1FA2";
+const COLOR_MIO_FILL  = "#BA68C8";
+const COLOR_OTRO_BORDE = "#1976D2";
+const COLOR_OTRO_FILL  = "#64B5F6";
 
 function makeCircleMarker(lat, lng, isMine) {
   return L.circleMarker([lat, lng], {
@@ -253,151 +133,292 @@ function makeCircleMarker(lat, lng, isMine) {
   });
 }
 
-function popupHtml(data) {
-  return `
-    <strong>${escapeHtml(data.tipo || 'Sin tipo')}</strong><br>
-    ${escapeHtml(data.descripcion || '')}<br>
-    <small>${escapeHtml(data.direccion || '')}</small><br>
-    ${data.municipalNumber ? `<small>N° municipal: ${escapeHtml(data.municipalNumber)}</small>` : ''}
-  `;
-}
+// --------------------------------------------
+// REPORTES EN TIEMPO REAL (add/modify/remove)
+// --------------------------------------------
+db.collection("reportes").orderBy("fecha", "desc").onSnapshot(snapshot => {
+  snapshot.docChanges().forEach(change => {
+    const doc = change.doc;
+    const r   = doc.data();
+    const docId = doc.id;
 
-// --- Formulario ---
-function initFormHandlers() {
-  const form = document.getElementById('report-form');
-  const btnCancelEdit = document.getElementById('btnCancelEdit');
+    if (change.type === "removed") {
+      const mk = markersByDoc.get(docId);
+      if (mk) { mk.remove(); markersByDoc.delete(docId); }
+      return;
+    }
 
-  form.addEventListener('submit', onSubmitReport);
-  btnCancelEdit.addEventListener('click', () => {
-    resetEditState();
-    form.reset();
-    document.getElementById('form-title').textContent = 'Nuevo reporte';
+    // Alta o modificación: dibujar/actualizar marcador
+    const lat = r.lat, lng = r.lng;
+    if (typeof lat !== "number" || typeof lng !== "number") return;
+
+    const isMine = currentUser && r.usuarioId === currentUser.uid;
+
+    // remover previo si existe
+    if (markersByDoc.has(docId)) {
+      markersByDoc.get(docId).remove();
+      markersByDoc.delete(docId);
+    }
+
+    const marker = makeCircleMarker(lat, lng, isMine)
+      .addTo(map)
+      .bindPopup(`
+        <b>${escapeHtml(r.tipo || "Sin tipo")}</b><br>
+        ${escapeHtml(r.descripcion || "")}<br>
+        ${escapeHtml(r.direccion || "")}<br>
+        ${r.municipalNumber ? `<small>N° municipal: ${escapeHtml(r.municipalNumber)}</small><br>` : ""}
+        <i>${escapeHtml(r.usuarioNombre || "")}</i>
+      `);
+
+    // Si es mío, al click abre edición y autocompleta dirección
+    if (isMine) {
+      marker.on("click", async () => {
+        abrirEdicion(docId, r);
+        selectedLatLng = { lat, lng };
+        // Autocompletar dirección con reverse (por si quiere actualizar)
+        const direccion = await obtenerDireccion(lat, lng);
+        document.getElementById("direccion").value = direccion;
+        // Marcador temporal en la ubicación del reporte (visual)
+        colocarMarkerTemp({ lat, lng });
+      });
+    }
+
+    markersByDoc.set(docId, marker);
   });
-}
+});
 
-function showForm() {
-  if (!currentUser) {
-    alert('Necesitás iniciar sesión para crear o editar reportes.');
+// --------------------------------------------
+// CLICK EN MAPA — NUEVO REPORTE (con zona + dirección)
+// --------------------------------------------
+map.on("click", async (e) => {
+  const p = e.latlng;
+
+  // VALIDACIÓN: ¿está dentro del barrio?
+  if (!puntoEnPoligono(p.lat, p.lng, barrioPolygon)) {
+    alert("Solo podés reportar dentro del barrio.");
     return;
   }
-  document.getElementById('report-form').classList.remove('hidden');
+
+  selectedLatLng = p;
+
+  const direccion = await obtenerDireccion(p.lat, p.lng);
+  document.getElementById("direccion").value = direccion;
+
+  colocarMarkerTemp(p);
+
+  abrirAlta(); // muestra formulario en modo alta
+});
+
+// --------------------------------------------
+// UBICACIÓN ACTUAL (GPS) — con zona + dirección
+// --------------------------------------------
+document.getElementById("btn-ubicacion").onclick = () => {
+  if (!navigator.geolocation) {
+    alert("GPS no soportado.");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+
+    if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
+      alert("Tu ubicación está fuera del barrio.");
+      return;
+    }
+
+    selectedLatLng = { lat, lng };
+
+    map.setView([lat, lng], 17);
+    colocarMarkerTemp(selectedLatLng);
+
+    const direccion = await obtenerDireccion(lat, lng);
+    document.getElementById("direccion").value = direccion;
+
+    abrirAlta();
+  }, () => alert("No se pudo obtener tu ubicación."), { enableHighAccuracy: true, timeout: 10000 });
+};
+
+// --------------------------------------------
+// REVERSE GEOCODING (Nominatim)
+// --------------------------------------------
+async function obtenerDireccion(lat, lng) {
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=es`;
+  try {
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (data.address) {
+      const calle  = data.address.road || "";
+      const altura = data.address.house_number || "";
+      const barrio = data.address.suburb || "";
+      const ciudad = data.address.city || data.address.town || data.address.village || "";
+      const partes = [calle && `${calle} ${altura}`.trim(), barrio, ciudad].filter(Boolean);
+      return partes.length ? partes.join(", ") : (data.display_name || "Dirección no disponible");
+    }
+    return data.display_name || "Dirección no disponible";
+  } catch {
+    return "Dirección no disponible";
+  }
 }
 
-function fillFormForEdit(docId, data) {
-  document.getElementById('tipo').value = data.tipo || 'Otro';
-  document.getElementById('descripcion').value = data.descripcion || '';
-  document.getElementById('direccion').value = data.direccion || '';
-  document.getElementById('nroMunicipalidad').value = data.municipalNumber || '';
+// --------------------------------------------
+// MARCADOR TEMPORAL (selección)
+// --------------------------------------------
+function colocarMarkerTemp({ lat, lng }) {
+  if (markerTemp) map.removeLayer(markerTemp);
+  markerTemp = L.circleMarker([lat, lng], {
+    radius: 10, color: "#555", weight: 2, fillColor: "#999", fillOpacity: 0.5
+  }).addTo(map).bindPopup("Ubicación seleccionada para el reclamo").openPopup();
+}
 
-  document.getElementById('report-form').classList.remove('hidden');
-  const btnSubmit = document.getElementById('btnSubmit');
-  btnSubmit.textContent = 'Actualizar reporte';
-  document.getElementById('btnCancelEdit').classList.remove('hidden');
-  document.getElementById('form-title').textContent = 'Editar mi reporte';
+// --------------------------------------------
+// FORMULARIO (alta y edición)
+// --------------------------------------------
+const form            = document.getElementById("report-form");
+const campoTipo       = document.getElementById("tipo");
+const campoDesc       = document.getElementById("descripcion");
+const campoDir        = document.getElementById("direccion");
+const campoMunicipal  = document.getElementById("nroMunicipalidad");
+const btnCancelEdit   = document.getElementById("btnCancelEdit"); // opcional si existe
+const btnSubmit       = document.getElementById("btnSubmit");     // opcional si existe
+const formTitle       = document.getElementById("form-title");    // opcional si existe
 
+function abrirAlta() {
+  editingDocId = null;
+  form.classList.remove("hidden");
+  if (btnSubmit)     btnSubmit.textContent = "Guardar reporte";
+  if (btnCancelEdit) btnCancelEdit.classList.add("hidden");
+  if (formTitle)     formTitle.textContent = "Nuevo reporte";
+}
+
+function abrirEdicion(docId, r) {
   editingDocId = docId;
 
+  campoTipo.value      = r.tipo || "Otro";
+  campoDesc.value      = r.descripcion || "";
+  campoDir.value       = r.direccion || "";
+  campoMunicipal.value = r.municipalNumber || "";
+
+  form.classList.remove("hidden");
+  if (btnSubmit)     btnSubmit.textContent = "Actualizar reporte";
+  if (btnCancelEdit) btnCancelEdit.classList.remove("hidden");
+  if (formTitle)     formTitle.textContent = "Editar mi reporte";
+
   // centrar mapa en el reclamo
-  if (typeof map !== 'undefined' && typeof data.lat === 'number' && typeof data.lng === 'number') {
-    map.setView([data.lat, data.lng], 17);
-    placeTempMarker({ lat: data.lat, lng: data.lng });
+  if (typeof r.lat === "number" && typeof r.lng === "number") {
+    map.setView([r.lat, r.lng], 17);
   }
 }
 
-function resetEditState() {
-  editingDocId = null;
-  document.getElementById('btnSubmit').textContent = 'Guardar reporte';
-  document.getElementById('btnCancelEdit').classList.add('hidden');
-}
-
-// Alta/edición
-async function onSubmitReport(ev) {
+// Único handler de submit (decide alta o edición)
+form.onsubmit = async (ev) => {
   ev.preventDefault();
 
-  const tipo = document.getElementById('tipo').value;
-  const descripcion = document.getElementById('descripcion').value.trim();
-  const direccion = document.getElementById('direccion').value.trim();
-  const municipalNumber = document.getElementById('nroMunicipalidad').value.trim();
-
-  if (!currentUser) {
-    alert('Necesitás iniciar sesión para guardar o editar tus reportes.');
+  if (!auth.currentUser) {
+    alert("Debés iniciar sesión con Google.");
     return;
   }
+
+  const tipo            = campoTipo.value;
+  const descripcion     = campoDesc.value.trim();
+  const direccion       = campoDir.value.trim();
+  const municipalNumber = (campoMunicipal?.value || "").trim();
+
   if (!tipo || !descripcion) {
-    alert('Completá al menos el tipo y la descripción.');
+    alert("Completá al menos el tipo y la descripción.");
     return;
   }
 
-  const db = firebase.firestore();
+  const latLng = selectedLatLng; // lo setea el click en mapa/GPS o al entrar a edición
+  const lat = latLng?.lat;
+  const lng = latLng?.lng;
+
+  // Si estamos creando, necesitamos una ubicación válida dentro de la zona
+  if (!editingDocId) {
+    if (typeof lat !== "number" || typeof lng !== "number") {
+      alert('Seleccioná ubicación (click en el mapa o "📍 Usar mi ubicación").');
+      return;
+    }
+    if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
+      alert("La ubicación está fuera de la zona permitida.");
+      return;
+    }
+  } else {
+    // Si estamos editando y el usuario eligió una nueva ubicación, también validar zona
+    if (typeof lat === "number" && typeof lng === "number") {
+      if (!puntoEnPoligono(lat, lng, barrioPolygon)) {
+        alert("La nueva ubicación está fuera de la zona permitida.");
+        return;
+      }
+    }
+  }
 
   try {
     if (!editingDocId) {
-      // ALTA: requiere coordenadas dentro de la zona
-      if (!selectedLatLng || typeof selectedLatLng.lat !== 'number' || typeof selectedLatLng.lng !== 'number') {
-        alert('Seleccioná ubicación (click en el mapa o "📍 Usar mi ubicación").');
-        return;
-      }
-      const inside = isPointInPolygon(selectedLatLng, ALLOWED_ZONE_POLYGON);
-      if (!inside) {
-        alert('La ubicación está fuera de la zona permitida.');
-        return;
-      }
-
-      const payload = {
+      // ALTA
+      await db.collection("reportes").add({
         tipo,
         descripcion,
-        direccion: direccion || '',
-        municipalNumber: municipalNumber || '',
-        lat: selectedLatLng.lat,
-        lng: selectedLatLng.lng,
-        userId: currentUser.uid,
-        userName: currentUser.displayName || '',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      };
-
-      await db.collection('reclamos').add(payload);
-      alert('¡Reporte guardado!');
-      document.getElementById('report-form').reset();
-      setZoneWarning(false);
+        direccion,
+        municipalNumber,                  // 🆕 número municipal opcional
+        lat,
+        lng,
+        estado: "Nuevo",
+        usuarioId: auth.currentUser.uid,
+        usuarioNombre: auth.currentUser.displayName,
+        fecha: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      alert("Reporte guardado");
+      form.reset();
+      form.classList.add("hidden");
     } else {
-      // EDICIÓN: campos textuales + (opcional) nueva ubicación si está dentro de la zona
+      // EDICIÓN (solo del dueño; reforzar con reglas de seguridad)
       const updateData = {
         tipo,
         descripcion,
-        direccion: direccion || '',
-        municipalNumber: municipalNumber || '',
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        direccion,
+        municipalNumber,                  // 🆕 número municipal opcional
+        // No toco estado; si querés cambiarlo, agregar aquí
       };
-
-      if (selectedLatLng && typeof selectedLatLng.lat === 'number' && typeof selectedLatLng.lng === 'number') {
-        const inside = isPointInPolygon(selectedLatLng, ALLOWED_ZONE_POLYGON);
-        if (!inside) {
-          alert('La nueva ubicación está fuera de la zona permitida.');
-          return;
-        }
-        updateData.lat = selectedLatLng.lat;
-        updateData.lng = selectedLatLng.lng;
+      // Si el usuario seleccionó nueva ubicación durante la edición, actualizamos lat/lng
+      if (typeof lat === "number" && typeof lng === "number") {
+        updateData.lat = lat;
+        updateData.lng = lng;
       }
 
-      await db.collection('reclamos').doc(editingDocId).update(updateData);
-      alert('¡Reporte actualizado!');
-      resetEditState();
-      document.getElementById('report-form').reset();
-      setZoneWarning(false);
+      await db.collection("reportes").doc(editingDocId).update(updateData);
+      alert("Reporte actualizado");
+      editingDocId = null;
+      form.reset();
+      form.classList.add("hidden");
     }
   } catch (err) {
     console.error(err);
-    alert('Ocurrió un error guardando el reporte.');
+    alert("Ocurrió un error guardando el reporte.");
   }
+};
+
+// Botón cancelar edición (si existe en tu HTML)
+if (btnCancelEdit) {
+  btnCancelEdit.onclick = () => {
+    editingDocId = null;
+    form.reset();
+    form.classList.add("hidden");
+    if (btnSubmit)     btnSubmit.textContent = "Guardar reporte";
+    if (btnCancelEdit) btnCancelEdit.classList.add("hidden");
+    if (formTitle)     formTitle.textContent = "Nuevo reporte";
+  };
 }
 
-// --- Utilidades ---
+// --------------------------------------------
+// Utilidad para escapar HTML en popups
+// --------------------------------------------
 function escapeHtml(str) {
   return String(str)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
