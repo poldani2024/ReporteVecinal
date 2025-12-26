@@ -7,12 +7,14 @@ const btnLogout  = document.getElementById("btnLogout");
 const userInfo   = document.getElementById("userInfo");
 const linkAdmin  = document.getElementById("link-admin");
 
-let currentUser    = null;
-let editingDocId   = null;
-let selectedLatLng = null;
-let markerTemp     = null;
-const markersByDoc = new Map();
-let unsubReportes  = null;  // 🆕 desuscripción
+let currentUser      = null;
+let currentUserRole  = "vecino";   // 🆕 rol del usuario (admin/vecino)
+let editingDocId     = null;
+let selectedLatLng   = null;
+let markerTemp       = null;
+const markersByDoc   = new Map();
+let unsubReportes    = null;
+let formReadOnly     = false;      // 🆕 flag: el formulario está en solo-lectura
 
 btnLogin.onclick = () => {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -23,6 +25,7 @@ btnLogout.onclick = () => auth.signOut();
 
 auth.onAuthStateChanged(async (user) => {
   currentUser = user || null;
+  currentUserRole = "vecino";
 
   if (user) {
     userInfo.textContent = `Conectado como: ${user.displayName}`;
@@ -42,7 +45,8 @@ auth.onAuthStateChanged(async (user) => {
     }
 
     const data = (await userRef.get()).data();
-    linkAdmin.classList.toggle("hidden", data.rol !== "admin");
+    currentUserRole = data.rol || "vecino";              // 🆕 guardamos el rol
+    linkAdmin.classList.toggle("hidden", currentUserRole !== "admin");
   } else {
     userInfo.textContent = "";
     btnLogin.classList.remove("hidden");
@@ -50,8 +54,7 @@ auth.onAuthStateChanged(async (user) => {
     linkAdmin.classList.add("hidden");
   }
 
-  // 🆕 Re-suscribir a "reportes" con el usuario actualizado,
-  // así los marcadores se colorean correctamente.
+  // Re-suscribir a "reportes" con el usuario/rol actual
   subscribeReportes();
 });
 
@@ -122,8 +125,8 @@ L.polygon([world, barrioCoords], {
 // --------------------------------------------
 // COLORES DE MARCADORES (violeta propio, azul resto)
 // --------------------------------------------
-const COLOR_MIO_BORDE = "#7B1FA2";
-const COLOR_MIO_FILL  = "#BA68C8";
+const COLOR_MIO_BORDE  = "#7B1FA2";
+const COLOR_MIO_FILL   = "#BA68C8";
 const COLOR_OTRO_BORDE = "#1976D2";
 const COLOR_OTRO_FILL  = "#64B5F6";
 
@@ -138,7 +141,7 @@ function makeCircleMarker(lat, lng, isMine) {
 }
 
 // --------------------------------------------
-// SUSCRIPCIÓN A "reportes" (re-suscribible)
+// SUSCRIPCIÓN A "reportes"
 // --------------------------------------------
 function subscribeReportes() {
   // limpiar marcadores previos
@@ -186,16 +189,25 @@ function subscribeReportes() {
             <i>${escapeHtml(r.usuarioNombre || "")}</i>
           `);
 
-        // edición si es mío
-        if (isMine) {
-          marker.on("click", async () => {
-            abrirEdicion(docId, r);
-            selectedLatLng = { lat, lng };
-            const direccion = await obtenerDireccion(lat, lng);
-            document.getElementById("direccion").value = direccion;
-            colocarMarkerTemp({ lat, lng });
-          });
-        }
+        // Click en marcador:
+        marker.on("click", async () => {
+          // Autocompletar dirección (por si se quiere actualizar/ver)
+          const direccion = await obtenerDireccion(lat, lng);
+          document.getElementById("direccion").value = direccion;
+          selectedLatLng = { lat, lng };
+          colocarMarkerTemp(selectedLatLng);
+
+          if (isMine) {
+            // Mi reporte: edición habilitada
+            abrirEdicion(docId, r, { readOnly: false });
+          } else if (currentUserRole === "admin") {
+            // Admin: puede editar reportes ajenos
+            abrirEdicion(docId, r, { readOnly: false });
+          } else {
+            // Otro usuario y no admin: ver en solo-lectura
+            abrirEdicion(docId, r, { readOnly: true });
+          }
+        });
 
         markersByDoc.set(docId, marker);
       });
@@ -204,8 +216,15 @@ function subscribeReportes() {
 
 // --------------------------------------------
 // CLICK EN MAPA — NUEVO REPORTE (zona + dirección)
+// (si el form está en solo-lectura por ver reporte ajeno, ignoramos el click)
 // --------------------------------------------
 map.on("click", async (e) => {
+  if (formReadOnly && editingDocId) {
+    // Estamos viendo reporte ajeno en solo-lectura; no permitir seleccionar nueva ubicación
+    alert("Estás viendo un reporte en modo solo-lectura. No podés cambiar su ubicación.");
+    return;
+  }
+
   const p = e.latlng;
 
   if (!puntoEnPoligono(p.lat, p.lng, barrioPolygon)) {
@@ -226,6 +245,11 @@ map.on("click", async (e) => {
 // UBICACIÓN ACTUAL (GPS) — zona + dirección
 // --------------------------------------------
 document.getElementById("btn-ubicacion").onclick = () => {
+  if (formReadOnly && editingDocId) {
+    alert("Estás viendo un reporte en modo solo-lectura. No podés cambiar su ubicación.");
+    return;
+  }
+
   if (!navigator.geolocation) {
     alert("GPS no soportado.");
     return;
@@ -297,15 +321,43 @@ const btnCancelEdit   = document.getElementById("btnCancelEdit"); // si existe
 const btnSubmit       = document.getElementById("btnSubmit");     // si existe
 const formTitle       = document.getElementById("form-title");    // si existe
 
+function setFormReadonly(ro) {
+  formReadOnly = !!ro;
+
+  // Deshabilitar/habilitar campos
+  campoTipo.disabled      = formReadOnly;
+  campoDesc.disabled      = formReadOnly;
+  campoDir.disabled       = formReadOnly;
+  if (campoMunicipal) campoMunicipal.disabled = formReadOnly;
+
+  // Botón guardar
+  if (btnSubmit) {
+    btnSubmit.disabled  = formReadOnly;
+    btnSubmit.textContent = formReadOnly ? "Guardar deshabilitado" : "Guardar reporte";
+  }
+
+  // Mostrar/ocultar “Cancelar edición”
+  if (btnCancelEdit) {
+    btnCancelEdit.classList.toggle("hidden", !editingDocId); // visible si estamos viendo/edita
+  }
+
+  // Título del form
+  if (formTitle) {
+    if (!editingDocId) {
+      formTitle.textContent = "Nuevo reporte";
+    } else {
+      formTitle.textContent = formReadOnly ? "Ver reporte (solo lectura)" : "Editar mi reporte";
+    }
+  }
+}
+
 function abrirAlta() {
   editingDocId = null;
   form.classList.remove("hidden");
-  if (btnSubmit)     btnSubmit.textContent = "Guardar reporte";
-  if (btnCancelEdit) btnCancelEdit.classList.add("hidden");
-  if (formTitle)     formTitle.textContent = "Nuevo reporte";
+  setFormReadonly(false);
 }
 
-function abrirEdicion(docId, r) {
+function abrirEdicion(docId, r, opts = { readOnly: false }) {
   editingDocId = docId;
 
   campoTipo.value      = r.tipo || "Otro";
@@ -314,10 +366,9 @@ function abrirEdicion(docId, r) {
   if (campoMunicipal)  campoMunicipal.value = r.municipalNumber || "";
 
   form.classList.remove("hidden");
-  if (btnSubmit)     btnSubmit.textContent = "Actualizar reporte";
-  if (btnCancelEdit) btnCancelEdit.classList.remove("hidden");
-  if (formTitle)     formTitle.textContent = "Editar mi reporte";
+  setFormReadonly(!!opts.readOnly);
 
+  // centrar mapa en el reclamo
   if (typeof r.lat === "number" && typeof r.lng === "number") {
     map.setView([r.lat, r.lng], 17);
     colocarMarkerTemp({ lat: r.lat, lng: r.lng });
@@ -330,6 +381,12 @@ form.onsubmit = async (ev) => {
 
   if (!auth.currentUser) {
     alert("Debés iniciar sesión con Google.");
+    return;
+  }
+
+  // Bloquear si estamos en solo-lectura (reporte ajeno y no admin)
+  if (formReadOnly) {
+    alert("No tenés permisos para editar este reporte.");
     return;
   }
 
@@ -363,7 +420,7 @@ form.onsubmit = async (ev) => {
         tipo,
         descripcion,
         direccion,
-        municipalNumber,     // 🆕 número municipal opcional
+        municipalNumber,
         lat,
         lng,
         estado: "Nuevo",
@@ -381,7 +438,7 @@ form.onsubmit = async (ev) => {
         tipo,
         descripcion,
         direccion,
-        municipalNumber      // 🆕 número municipal opcional
+        municipalNumber
       };
 
       if (typeof lat === "number" && typeof lng === "number") {
@@ -401,7 +458,11 @@ form.onsubmit = async (ev) => {
     }
   } catch (err) {
     console.error(err);
-    alert("Ocurrió un error guardando el reporte.");
+    if (err.code === "permission-denied") {
+      alert("No tenés permisos para esta operación. Verificá que seas el dueño o admin.");
+    } else {
+      alert("Ocurrió un error guardando el reporte.");
+    }
   }
 };
 
@@ -411,9 +472,7 @@ if (btnCancelEdit) {
     editingDocId = null;
     form.reset();
     form.classList.add("hidden");
-    if (btnSubmit)     btnSubmit.textContent = "Guardar reporte";
-    if (btnCancelEdit) btnCancelEdit.classList.add("hidden");
-    if (formTitle)     formTitle.textContent = "Nuevo reporte";
+    setFormReadonly(false);
   };
 }
 
