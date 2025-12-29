@@ -8,20 +8,18 @@
   />
   <title>🔧 Panel de Administración</title>
 
-  <link rel="stylesheet" href="style.css" />
-
   <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-  <script src="firebase.js"></script>
+  <script src="./firebase.js"></script>
 </head>
 <body>
   <header class="header">
     <h1 class="title">🔧 Panel de Administración</h1>
     <div class="login-area">
-      <button onclick="window.location.href='index.html'">⬅ Volver al mapa</button>
+      <button onclick="index.html">⬅ Volver al mapa</button>
       <span id="adminUserInfo" class="muted"></span>
     </div>
   </header>
@@ -59,7 +57,6 @@
       </div>
     </section>
   </main>
-
-  <script src="admin.js"></script>
+  <script src="./admin.js"></script>
 </body>
 </html>
